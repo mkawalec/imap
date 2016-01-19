@@ -16,11 +16,12 @@ import Data.Word8
 
 import qualified Data.STM.RollingQueue as RQ
 import Control.Concurrent.STM.TQueue
+import Control.Concurrent.STM.TVar
 import Control.Monad.STM
 
 import Data.Either (isRight)
 import Data.Either.Combinators (fromRight', mapLeft)
-import Control.Concurrent (forkIO, ThreadId)
+import Control.Concurrent (forkIO, ThreadId, myThreadId)
 import Control.Monad (join)
 
 type ErrorMessage = T.Text
@@ -28,7 +29,7 @@ data ConnectionState = Connected | Authenticated | Selected T.Text
 data IMAPConnection = IMAPConnection {
   rawConnection :: !Connection,
   connectionState :: !ConnectionState,
-  commandReplies :: M.Map BSC.ByteString CommandResult,
+  commandReplies :: TVar (M.Map BSC.ByteString CommandResult),
   serverWatcherThread :: ThreadId,
   untaggedQueue :: RQ.RollingQueue CommandResult
 }
@@ -51,22 +52,22 @@ data CommandResult = TaggedResult {
                    | UIDNext Int
 
 
-requestWatcher :: RQ.RollingQueue CommandResult ->
-                  TQueue CommandResult ->
-                  Connection ->
-                  IO ()
-requestWatcher untaggedQueue taggedQueue imapConnection = do
-  line <- connectionGetLine 100000 imapConnection
+requestWatcher :: IMAPConnection -> IO ()
+requestWatcher connection = do
+  line <- connectionGetLine 100000 (rawConnection connection)
   let parsedLine = join $ mapLeft T.pack (AP.parseOnly parseLine line)
 
   if isRight parsedLine
     then do
       let parsed = fromRight' parsedLine
       atomically $ case parsed of
-                    TaggedResult _ _ _ -> writeTQueue taggedQueue parsed
-                    _ -> RQ.write untaggedQueue parsed
+                    TaggedResult commId _ _ -> do
+                      let replies = commandReplies connection
+                      respMap <- readTVar replies
+                      writeTVar replies $ M.insert commId parsed respMap
+                    _ -> RQ.write (untaggedQueue connection) parsed
     else return ()
-  requestWatcher untaggedQueue taggedQueue imapConnection
+  requestWatcher connection
 
 connectServer :: IO IMAPConnection
 connectServer = do
@@ -78,10 +79,15 @@ connectServer = do
   connectionSetSecure context connection tlsSettings
 
   untaggedQueue <- RQ.newIO 20
-  taggedQueue <- newTQueueIO
-  watcher <- forkIO $ requestWatcher untaggedQueue taggedQueue connection
+  repliesMap <- newTVarIO M.empty
+  currentThreadId <- myThreadId
 
-  return $ IMAPConnection connection Connected M.empty watcher untaggedQueue
+  let conn = IMAPConnection connection Connected repliesMap currentThreadId untaggedQueue
+  watcherThreadId <- forkIO $ requestWatcher conn
+
+  return conn {
+    serverWatcherThread = watcherThreadId
+  }
 
 genCommandId :: IO BSC.ByteString
 genCommandId = do
