@@ -43,7 +43,7 @@ requestWatcher conn knownReqs = do
 
 dispatchTagged :: IMAPState -> [ResponseRequest] -> TaggedResult -> IO [ResponseRequest]
 dispatchTagged state outstandingReqs response = do
-  let reqId = requestId response
+  let reqId = commandId response
   let pendingRequest = L.find (\r -> respRequestId r == reqId) outstandingReqs
   let replies = commandReplies state
 

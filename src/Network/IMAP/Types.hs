@@ -12,7 +12,7 @@ import Network.Connection (Connection)
 import qualified Data.Map.Strict as M
 
 type ErrorMessage = T.Text
-type RequestId = BSC.ByteString
+type CommandId = BSC.ByteString
 
 data ConnectionState = Connected | Authenticated | Selected T.Text
 data IMAPConnection = IMAPConnection {
@@ -24,13 +24,13 @@ data IMAPConnection = IMAPConnection {
 
 data IMAPState = IMAPState {
   rawConnection :: !Connection,
-  commandReplies :: TVar (M.Map RequestId RequestResponse),
+  commandReplies :: TVar (M.Map CommandId RequestResponse),
   responseRequests :: TQueue ResponseRequest
 }
 
 data ResponseRequest = ResponseRequest {
   requestResponse :: TMVar RequestResponse,
-  respRequestId :: RequestId
+  respRequestId :: CommandId
 } deriving (Eq)
 
 data ResultState = OK | NO | BAD deriving (Show)
@@ -46,7 +46,7 @@ data Flag = FSeen
   deriving (Show)
 
 data TaggedResult = TaggedResult {
-                      requestId :: RequestId,
+                      commandId :: CommandId,
                       resultState :: !ResultState,
                       resultRest :: BSC.ByteString
                     } deriving (Show)

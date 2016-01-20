@@ -2,18 +2,9 @@ module Network.IMAP where
 
 import Network.Connection
 import qualified Data.Text as T
-import Data.Text.Encoding (encodeUtf8, decodeUtf8)
+import Data.Text.Encoding (encodeUtf8)
 import qualified Data.ByteString.Char8 as BSC
-import qualified Data.ByteString as BS
-import Control.Applicative
 import qualified Data.Map.Strict as M
-import qualified Debug.Trace as DT
-import Data.Maybe (isJust, fromJust)
-
-import Data.Attoparsec.ByteString
-import qualified Data.Attoparsec.ByteString as AP
-import Data.Word8
-import qualified Data.List as L
 
 import qualified Data.STM.RollingQueue as RQ
 import Control.Concurrent.STM.TQueue
@@ -21,12 +12,9 @@ import Control.Concurrent.STM.TVar
 import Control.Concurrent.STM.TMVar
 import Control.Monad.STM
 
-import Data.Either (isRight)
-import Data.Either.Combinators (fromRight', mapLeft)
-import Control.Concurrent (forkIO, ThreadId, myThreadId)
+import Control.Concurrent (forkIO)
 
 import Network.IMAP.Types
-import Network.IMAP.Parsers
 import Network.IMAP.RequestWatcher
 import Network.IMAP.Utils
 
