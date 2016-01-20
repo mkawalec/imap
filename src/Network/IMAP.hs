@@ -92,7 +92,7 @@ dispatchTagged conn outstandingReqs response = do
       writeTVar replies $ M.insert reqId wrappedResponse repliesMap
 
   return $ if isJust pendingRequest
-            then filter (== fromJust pendingRequest) outstandingReqs
+            then filter (/= fromJust pendingRequest) outstandingReqs
             else outstandingReqs
 
 dispatchUntagged :: IMAPConnection ->
@@ -132,7 +132,6 @@ requestWatcher conn knownReqs = do
   newReqs <- atomically $ getOutstandingReqs (responseRequests conn)
   let outstandingReqs = knownReqs ++ newReqs
 
-  DT.traceShow parsedLine $ DT.traceShow line $ DT.traceShow (length outstandingReqs) $ return ()
   nOutReqs <- if isRight parsedLine
                 then do
                   let parsed = fromRight' parsedLine
@@ -141,7 +140,6 @@ requestWatcher conn knownReqs = do
                     Tagged t -> dispatchTagged conn outstandingReqs t
                     Untagged u -> dispatchUntagged conn outstandingReqs u
                 else return outstandingReqs
-  DT.traceShow (length nOutReqs) $ return ()
   requestWatcher conn nOutReqs
 
 connectServer :: IO IMAPConnection
@@ -263,7 +261,7 @@ parseNumber constructor prefix postfix = do
     then string prefix <* word8 _space
     else return BSC.empty
   count <- takeWhile1 isDigit
-  DT.traceShow count $ if not . BSC.null $ postfix
+  if not . BSC.null $ postfix
     then word8 _space *> string postfix
     else return BSC.empty
 
