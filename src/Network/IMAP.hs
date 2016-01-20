@@ -32,12 +32,16 @@ type RequestId = BSC.ByteString
 
 data ConnectionState = Connected | Authenticated | Selected T.Text
 data IMAPConnection = IMAPConnection {
+  connectionState :: !ConnectionState, --Unused, will have the current state in a TVar
+  untaggedQueue :: RQ.RollingQueue UntaggedResult,
+  serverWatcherThread :: Maybe ThreadId,
+  imapState :: IMAPState
+}
+
+data IMAPState = IMAPState {
   rawConnection :: !Connection,
-  connectionState :: !ConnectionState,
   commandReplies :: TVar (M.Map RequestId RequestResponse),
-  responseRequests :: TQueue ResponseRequest,
-  serverWatcherThread :: ThreadId,
-  untaggedQueue :: RQ.RollingQueue UntaggedResult
+  responseRequests :: TQueue ResponseRequest
 }
 
 data ResponseRequest = ResponseRequest {
@@ -45,15 +49,22 @@ data ResponseRequest = ResponseRequest {
   respRequestId :: RequestId
 } deriving (Eq)
 
-data CommandState = OK | NO | BAD deriving (Show)
+data ResultState = OK | NO | BAD deriving (Show)
 
-data Flag = FSeen | FAnswered | FFlagged | FDeleted | FDraft | FRecent
+data Flag = FSeen
+          | FAnswered
+          | FFlagged
+          | FDeleted
+          | FDraft
+          | FRecent
+          | FAny
+          | FOther T.Text
   deriving (Show)
 
 data TaggedResult = TaggedResult {
                       requestId :: RequestId,
-                      commandState :: !CommandState,
-                      commandRest :: BSC.ByteString
+                      resultState :: !ResultState,
+                      resultRest :: BSC.ByteString
                     } deriving (Show)
 
 data UntaggedResult = Flags [Flag]
@@ -72,11 +83,11 @@ data RequestResponse = RequestResponse {
   taggedResult :: Maybe TaggedResult
 } deriving (Show)
 
-dispatchTagged :: IMAPConnection -> [ResponseRequest] -> TaggedResult -> IO [ResponseRequest]
-dispatchTagged conn outstandingReqs response = do
+dispatchTagged :: IMAPState -> [ResponseRequest] -> TaggedResult -> IO [ResponseRequest]
+dispatchTagged state outstandingReqs response = do
   let reqId = requestId response
   let pendingRequest = L.find (\r -> respRequestId r == reqId) outstandingReqs
-  let replies = commandReplies conn
+  let replies = commandReplies state
 
   if isJust pendingRequest
     then atomically $ do
@@ -85,7 +96,7 @@ dispatchTagged conn outstandingReqs response = do
                     then (repliesMap M.! reqId) {taggedResult = Just response}
                     else RequestResponse {untaggedResults = [], taggedResult = Just response}
       putTMVar (requestResponse . fromJust $ pendingRequest) reply
-      writeTVar (commandReplies conn) $ M.delete reqId repliesMap
+      writeTVar (commandReplies state) $ M.delete reqId repliesMap
     else atomically $ do
       repliesMap <- readTVar replies
       let wrappedResponse = RequestResponse [] $ Just response
@@ -96,20 +107,21 @@ dispatchTagged conn outstandingReqs response = do
             else outstandingReqs
 
 dispatchUntagged :: IMAPConnection ->
+                    IMAPState ->
                     [ResponseRequest] ->
                     UntaggedResult ->
                     IO [ResponseRequest]
-dispatchUntagged conn outstandingReqs response = do
+dispatchUntagged conn state outstandingReqs response = do
   if null outstandingReqs
     then atomically $ RQ.write (untaggedQueue conn) response
     else atomically $ do
       let reqId = respRequestId . head $ outstandingReqs
-      repliesMap <- readTVar $ commandReplies conn
+      repliesMap <- readTVar $ commandReplies state
       let reply = if M.member reqId repliesMap
                     then repliesMap M.! reqId
                     else RequestResponse [] Nothing
       let updatedReply = reply {untaggedResults = response:(untaggedResults reply)}
-      writeTVar (commandReplies conn) $ M.insert reqId updatedReply repliesMap
+      writeTVar (commandReplies state) $ M.insert reqId updatedReply repliesMap
   return outstandingReqs
 
 getOutstandingReqs :: TQueue ResponseRequest ->
@@ -126,10 +138,11 @@ getOutstandingReqs reqsQueue = do
 
 requestWatcher :: IMAPConnection -> [ResponseRequest] -> IO ()
 requestWatcher conn knownReqs = do
-  line <- connectionGetLine 100000 (rawConnection conn)
+  let state = imapState conn
+  line <- connectionGetLine 100000 (rawConnection state)
   let parsedLine = join $ mapLeft T.pack (AP.parseOnly parseLine line)
 
-  newReqs <- atomically $ getOutstandingReqs (responseRequests conn)
+  newReqs <- atomically $ getOutstandingReqs (responseRequests state)
   let outstandingReqs = knownReqs ++ newReqs
 
   nOutReqs <- if isRight parsedLine
@@ -137,8 +150,8 @@ requestWatcher conn knownReqs = do
                   let parsed = fromRight' parsedLine
 
                   case parsed of
-                    Tagged t -> dispatchTagged conn outstandingReqs t
-                    Untagged u -> dispatchUntagged conn outstandingReqs u
+                    Tagged t -> dispatchTagged state outstandingReqs t
+                    Untagged u -> dispatchUntagged conn state outstandingReqs u
                 else return outstandingReqs
   requestWatcher conn nOutReqs
 
@@ -154,20 +167,24 @@ connectServer = do
   untaggedRespsQueue <- RQ.newIO 20
   repliesMap <- newTVarIO M.empty
   responseRequestsQueue <- newTQueueIO
-  currentThreadId <- myThreadId
+
+  let state = IMAPState {
+    rawConnection = connection,
+    commandReplies =  repliesMap,
+    responseRequests = responseRequestsQueue
+  }
 
   let conn = IMAPConnection {
-    rawConnection = connection,
     connectionState = Connected,
-    commandReplies =  repliesMap,
-    responseRequests = responseRequestsQueue,
-    serverWatcherThread = currentThreadId,
-    untaggedQueue = untaggedRespsQueue
+    serverWatcherThread = Nothing,
+    untaggedQueue = untaggedRespsQueue,
+    imapState = state
   }
+
   watcherThreadId <- forkIO $ requestWatcher conn []
 
   return conn {
-    serverWatcherThread = watcherThreadId
+    serverWatcherThread = Just watcherThreadId
   }
 
 genRequestId :: IO BSC.ByteString
@@ -177,14 +194,15 @@ genRequestId = do
 
 sendCommand :: IMAPConnection -> BSC.ByteString -> IO RequestResponse
 sendCommand conn command = do
+  let state = imapState conn
   requestId <- genRequestId
   let commandLine = BSC.concat [requestId, " ", command, "\r\n"]
 
-  connectionPut (rawConnection conn) commandLine
+  connectionPut (rawConnection state) commandLine
   responseWrapper <- atomically $ newEmptyTMVar
 
   let responseRequest = ResponseRequest responseWrapper requestId
-  atomically $ writeTQueue (responseRequests conn) responseRequest
+  atomically $ writeTQueue (responseRequests state) responseRequest
   atomically $ takeTMVar responseWrapper
 
 login :: IMAPConnection -> T.Text -> T.Text -> IO RequestResponse
@@ -246,10 +264,16 @@ parseFlag = do
             "Deleted" -> FDeleted
             "Draft" -> FDraft
             "Recent" -> FRecent
+            "*" -> FAny
+
+parseWeirdFlag :: Parser Flag
+parseWeirdFlag = do
+  flagText <- AP.takeWhile1 (\c -> isLetter c || c == _dollar)
+  return . FOther . decodeUtf8 $ flagText
 
 parseFlagList :: Parser [Flag]
 parseFlagList = word8 _parenleft *>
-                parseFlag `sepBy` word8 _space
+                (parseFlag <|> parseWeirdFlag) `sepBy` word8 _space
                 <* word8 _parenright
 
 parseFlags :: Parser (Either ErrorMessage UntaggedResult)
