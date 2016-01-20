@@ -9,14 +9,17 @@ import qualified Data.ByteString as BS
 import Control.Applicative
 import qualified Data.Map.Strict as M
 import qualified Debug.Trace as DT
+import Data.Maybe (isJust, fromJust)
 
 import Data.Attoparsec.ByteString
 import qualified Data.Attoparsec.ByteString as AP
 import Data.Word8
+import qualified Data.List as L
 
 import qualified Data.STM.RollingQueue as RQ
 import Control.Concurrent.STM.TQueue
 import Control.Concurrent.STM.TVar
+import Control.Concurrent.STM.TMVar
 import Control.Monad.STM
 
 import Data.Either (isRight)
@@ -25,49 +28,121 @@ import Control.Concurrent (forkIO, ThreadId, myThreadId)
 import Control.Monad (join)
 
 type ErrorMessage = T.Text
+type RequestId = BSC.ByteString
+
 data ConnectionState = Connected | Authenticated | Selected T.Text
 data IMAPConnection = IMAPConnection {
   rawConnection :: !Connection,
   connectionState :: !ConnectionState,
-  commandReplies :: TVar (M.Map BSC.ByteString CommandResult),
+  commandReplies :: TVar (M.Map RequestId RequestResponse),
+  responseRequests :: TQueue ResponseRequest,
   serverWatcherThread :: ThreadId,
-  untaggedQueue :: RQ.RollingQueue CommandResult
+  untaggedQueue :: RQ.RollingQueue UntaggedResult
 }
+
+data ResponseRequest = ResponseRequest {
+  requestResponse :: TMVar RequestResponse,
+  respRequestId :: RequestId
+} deriving (Eq)
 
 data CommandState = OK | NO | BAD deriving (Show)
 
 data Flag = FSeen | FAnswered | FFlagged | FDeleted | FDraft | FRecent
   deriving (Show)
 
-data CommandResult = TaggedResult {
-                      commandId :: BSC.ByteString,
+data TaggedResult = TaggedResult {
+                      requestId :: RequestId,
                       commandState :: !CommandState,
                       commandRest :: BSC.ByteString
-                    }
-                   | Flags [Flag]
-                   | Exists Int
-                   | Recent Int
-                   | Unseen Int
-                   | PermanentFlags [Flag]
-                   | UIDNext Int
+                    } deriving (Show)
+
+data UntaggedResult = Flags [Flag]
+                    | Exists Int
+                    | Recent Int
+                    | Unseen Int
+                    | PermanentFlags [Flag]
+                    | UIDNext Int
+                    deriving (Show)
+
+data CommandResult = Tagged TaggedResult | Untagged UntaggedResult
+  deriving (Show)
+
+data RequestResponse = RequestResponse {
+  untaggedResults :: [UntaggedResult],
+  taggedResult :: Maybe TaggedResult
+} deriving (Show)
+
+dispatchTagged :: IMAPConnection -> [ResponseRequest] -> TaggedResult -> IO [ResponseRequest]
+dispatchTagged conn outstandingReqs response = do
+  let reqId = requestId response
+  let pendingRequest = L.find (\r -> respRequestId r == reqId) outstandingReqs
+  let replies = commandReplies conn
+
+  if isJust pendingRequest
+    then atomically $ do
+      repliesMap <- readTVar replies
+      let reply = if M.member reqId repliesMap
+                    then (repliesMap M.! reqId) {taggedResult = Just response}
+                    else RequestResponse {untaggedResults = [], taggedResult = Just response}
+      putTMVar (requestResponse . fromJust $ pendingRequest) reply
+      writeTVar (commandReplies conn) $ M.delete reqId repliesMap
+    else atomically $ do
+      repliesMap <- readTVar replies
+      let wrappedResponse = RequestResponse [] $ Just response
+      writeTVar replies $ M.insert reqId wrappedResponse repliesMap
+
+  return $ if isJust pendingRequest
+            then filter (== fromJust pendingRequest) outstandingReqs
+            else outstandingReqs
+
+dispatchUntagged :: IMAPConnection ->
+                    [ResponseRequest] ->
+                    UntaggedResult ->
+                    IO [ResponseRequest]
+dispatchUntagged conn outstandingReqs response = do
+  if null outstandingReqs
+    then atomically $ RQ.write (untaggedQueue conn) response
+    else atomically $ do
+      let reqId = respRequestId . head $ outstandingReqs
+      repliesMap <- readTVar $ commandReplies conn
+      let reply = if M.member reqId repliesMap
+                    then repliesMap M.! reqId
+                    else RequestResponse [] Nothing
+      let updatedReply = reply {untaggedResults = response:(untaggedResults reply)}
+      writeTVar (commandReplies conn) $ M.insert reqId updatedReply repliesMap
+  return outstandingReqs
+
+getOutstandingReqs :: TQueue ResponseRequest ->
+                      STM [ResponseRequest]
+getOutstandingReqs reqsQueue = do
+  isEmpty <- isEmptyTQueue reqsQueue
+  if isEmpty
+    then return []
+    else do
+      req <- readTQueue reqsQueue
+      next <- getOutstandingReqs reqsQueue
+      return (req:next)
 
 
-requestWatcher :: IMAPConnection -> IO ()
-requestWatcher connection = do
-  line <- connectionGetLine 100000 (rawConnection connection)
+requestWatcher :: IMAPConnection -> [ResponseRequest] -> IO ()
+requestWatcher conn knownReqs = do
+  line <- connectionGetLine 100000 (rawConnection conn)
   let parsedLine = join $ mapLeft T.pack (AP.parseOnly parseLine line)
 
-  if isRight parsedLine
-    then do
-      let parsed = fromRight' parsedLine
-      atomically $ case parsed of
-                    TaggedResult commId _ _ -> do
-                      let replies = commandReplies connection
-                      respMap <- readTVar replies
-                      writeTVar replies $ M.insert commId parsed respMap
-                    _ -> RQ.write (untaggedQueue connection) parsed
-    else return ()
-  requestWatcher connection
+  newReqs <- atomically $ getOutstandingReqs (responseRequests conn)
+  let outstandingReqs = knownReqs ++ newReqs
+
+  DT.traceShow parsedLine $ DT.traceShow line $ DT.traceShow (length outstandingReqs) $ return ()
+  nOutReqs <- if isRight parsedLine
+                then do
+                  let parsed = fromRight' parsedLine
+
+                  case parsed of
+                    Tagged t -> dispatchTagged conn outstandingReqs t
+                    Untagged u -> dispatchUntagged conn outstandingReqs u
+                else return outstandingReqs
+  DT.traceShow (length nOutReqs) $ return ()
+  requestWatcher conn nOutReqs
 
 connectServer :: IO IMAPConnection
 connectServer = do
@@ -78,31 +153,43 @@ connectServer = do
   connection <- connectTo context params
   connectionSetSecure context connection tlsSettings
 
-  untaggedQueue <- RQ.newIO 20
+  untaggedRespsQueue <- RQ.newIO 20
   repliesMap <- newTVarIO M.empty
+  responseRequestsQueue <- newTQueueIO
   currentThreadId <- myThreadId
 
-  let conn = IMAPConnection connection Connected repliesMap currentThreadId untaggedQueue
-  watcherThreadId <- forkIO $ requestWatcher conn
+  let conn = IMAPConnection {
+    rawConnection = connection,
+    connectionState = Connected,
+    commandReplies =  repliesMap,
+    responseRequests = responseRequestsQueue,
+    serverWatcherThread = currentThreadId,
+    untaggedQueue = untaggedRespsQueue
+  }
+  watcherThreadId <- forkIO $ requestWatcher conn []
 
   return conn {
     serverWatcherThread = watcherThreadId
   }
 
-genCommandId :: IO BSC.ByteString
-genCommandId = do
+genRequestId :: IO BSC.ByteString
+genRequestId = do
   randomGen <- newStdGen
   return $ BSC.pack . Prelude.take 9 $ randomRs ('a', 'z') randomGen
 
-sendCommand :: IMAPConnection -> BSC.ByteString -> IO BSC.ByteString
+sendCommand :: IMAPConnection -> BSC.ByteString -> IO RequestResponse
 sendCommand conn command = do
-  commandId <- genCommandId
-  let commandLine = BSC.concat [commandId, " ", command, "\r\n"]
+  requestId <- genRequestId
+  let commandLine = BSC.concat [requestId, " ", command, "\r\n"]
 
   connectionPut (rawConnection conn) commandLine
-  return commandId
+  responseWrapper <- atomically $ newEmptyTMVar
 
-login :: IMAPConnection -> T.Text -> T.Text -> IO BSC.ByteString
+  let responseRequest = ResponseRequest responseWrapper requestId
+  atomically $ writeTQueue (responseRequests conn) responseRequest
+  atomically $ takeTMVar responseWrapper
+
+login :: IMAPConnection -> T.Text -> T.Text -> IO RequestResponse
 login conn username password = sendCommand conn . encodeUtf8 $
   T.intercalate " " ["LOGIN", escapeText username, escapeText password]
 
@@ -115,12 +202,12 @@ escapeText t = T.replace "{" "\\{" $
 parseLine :: Parser (Either ErrorMessage CommandResult)
 parseLine = do
   parsed <- parseUntagged <|> parseTagged
-  string "\r\n"
+  string "\r"
   return parsed
 
 parseTagged :: Parser (Either ErrorMessage CommandResult)
 parseTagged = do
-  commandId <- takeWhile1 isLetter
+  requestId <- takeWhile1 isLetter
   word8 _space
 
   commandState <- takeWhile1 isLetter
@@ -133,7 +220,7 @@ parseTagged = do
                 "BAD" -> BAD
                 _ -> BAD
 
-  return . Right $ TaggedResult commandId state rest
+  return . Right . Tagged $ TaggedResult requestId state rest
 
 parseUntagged :: Parser (Either ErrorMessage CommandResult)
 parseUntagged = do
@@ -148,7 +235,7 @@ parseUntagged = do
 
   -- Take the rest
   _ <- AP.takeWhile (/= _cr)
-  return result
+  return $ result >>= Right . Untagged
 
 parseFlag :: Parser Flag
 parseFlag = do
@@ -167,10 +254,10 @@ parseFlagList = word8 _parenleft *>
                 parseFlag `sepBy` word8 _space
                 <* word8 _parenright
 
-parseFlags :: Parser (Either ErrorMessage CommandResult)
+parseFlags :: Parser (Either ErrorMessage UntaggedResult)
 parseFlags = Right . Flags <$> (string "FLAGS " *> parseFlagList)
 
-parseNumber :: (Int -> CommandResult) -> BSC.ByteString -> BSC.ByteString -> Parser (Either ErrorMessage CommandResult)
+parseNumber :: (Int -> UntaggedResult) -> BSC.ByteString -> BSC.ByteString -> Parser (Either ErrorMessage UntaggedResult)
 parseNumber constructor prefix postfix = do
   if not . BSC.null $ prefix
     then string prefix <* word8 _space
@@ -182,28 +269,28 @@ parseNumber constructor prefix postfix = do
 
   return $ toInt count >>= return . constructor
 
-parseExists :: Parser (Either ErrorMessage CommandResult)
+parseExists :: Parser (Either ErrorMessage UntaggedResult)
 parseExists = parseNumber Exists "" "EXISTS"
 
-parseRecent :: Parser (Either ErrorMessage CommandResult)
+parseRecent :: Parser (Either ErrorMessage UntaggedResult)
 parseRecent = parseNumber Recent "" "RECENT"
 
 parseOkResp :: Parser a -> Parser a
 parseOkResp innerParser = string "OK [" *> innerParser <* string "]"
 
-parseUnseen :: Parser (Either ErrorMessage CommandResult)
+parseUnseen :: Parser (Either ErrorMessage UntaggedResult)
 parseUnseen = parseOkResp $
   (\x -> toInt x >>= Right . Unseen) <$>
   (string "UNSEEN " *> takeWhile1 isDigit)
 
-parsePermanentFlags :: Parser CommandResult
+parsePermanentFlags :: Parser UntaggedResult
 parsePermanentFlags = parseOkResp $
   PermanentFlags <$> (string "PERMANENTFLAGS " *> parseFlagList)
 
-parseUidNext :: Parser (Either ErrorMessage CommandResult)
+parseUidNext :: Parser (Either ErrorMessage UntaggedResult)
 parseUidNext = parseOkResp $ parseNumber UIDNext "UIDNEXT" ""
 
-parseUidValidity :: Parser (Either ErrorMessage CommandResult)
+parseUidValidity :: Parser (Either ErrorMessage UntaggedResult)
 parseUidValidity = parseOkResp $ parseNumber UIDNext "UIDVALIDITY" ""
 
 toInt :: BSC.ByteString -> Either ErrorMessage Int
