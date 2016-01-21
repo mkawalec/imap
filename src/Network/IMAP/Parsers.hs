@@ -6,11 +6,11 @@ import Data.Attoparsec.ByteString
 import qualified Data.Attoparsec.ByteString as AP
 import Data.Word8
 import qualified Data.Text as T
-import qualified Data.List as L
-import Data.Text.Encoding (encodeUtf8, decodeUtf8)
+import Data.Text.Encoding (decodeUtf8)
 import qualified Data.ByteString.Char8 as BSC
 
 import Control.Applicative
+import Control.Monad (mzero)
 
 parseLine :: Parser (Either ErrorMessage CommandResult)
 parseLine = do
@@ -54,14 +54,15 @@ parseFlag :: Parser Flag
 parseFlag = do
   word8 _backslash
   flagName <- takeWhile1 isLetter
-  return $ case flagName of
-            "Seen" -> FSeen
-            "Answered" -> FAnswered
-            "Flagged" -> FFlagged
-            "Deleted" -> FDeleted
-            "Draft" -> FDraft
-            "Recent" -> FRecent
-            "*" -> FAny
+  case flagName of
+            "Seen" -> return FSeen
+            "Answered" -> return FAnswered
+            "Flagged" -> return FFlagged
+            "Deleted" -> return FDeleted
+            "Draft" -> return FDraft
+            "Recent" -> return FRecent
+            "*" -> return FAny
+            _ -> mzero
 
 parseWeirdFlag :: Parser Flag
 parseWeirdFlag = do
