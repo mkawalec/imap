@@ -4,17 +4,18 @@ import Network.IMAP.Types
 import Network.IMAP.Parsers
 
 import Data.Either (isRight)
-import Data.Either.Combinators (fromRight', mapLeft)
+import Data.Either.Combinators (fromRight')
 import Data.Maybe (isJust, fromJust)
 
 import Network.Connection
 import Data.Attoparsec.ByteString
 import qualified Data.Attoparsec.ByteString as AP
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BSC
 
 import qualified Data.List as L
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
-import Control.Monad (join)
 
 import qualified Data.STM.RollingQueue as RQ
 import Control.Concurrent.STM.TQueue
@@ -22,11 +23,36 @@ import Control.Concurrent.STM.TVar
 import Control.Concurrent.STM.TMVar
 import Control.Monad.STM
 
+
+omitOneLine :: BSC.ByteString -> BSC.ByteString
+omitOneLine bytes = if BSC.length withLF > 0 then BSC.tail withLF else withLF
+  where withLF = BSC.dropWhile (/= '\n') bytes
+
+type ParseResult = Either ErrorMessage CommandResult
+parseChunk :: (BSC.ByteString -> Result ParseResult) ->
+              BSC.ByteString ->
+              ((Maybe ParseResult, Maybe (BSC.ByteString -> Result ParseResult)), BSC.ByteString)
+parseChunk parser chunk =
+    case parser chunk of
+      Fail left _ msg -> ((Just . Left . T.pack $ msg, Nothing), omitOneLine left)
+      Partial continuation -> ((Nothing, Just continuation), BS.empty)
+      Done left result -> ((Just result, Nothing), left)
+
+getParsedChunk :: Connection ->
+                  (BSC.ByteString -> Result ParseResult) ->
+                  IO ParseResult
+getParsedChunk conn parser = do
+  (parsed, cont) <- connectionGetChunk' conn $ parseChunk parser
+
+  if isJust cont
+    then getParsedChunk conn $ fromJust cont
+    else return . fromJust $ parsed
+
 requestWatcher :: IMAPConnection -> [ResponseRequest] -> IO ()
 requestWatcher conn knownReqs = do
   let state = imapState conn
-  line <- connectionGetLine 100000 (rawConnection state)
-  let parsedLine = join $ mapLeft T.pack (AP.parseOnly parseLine line)
+
+  parsedLine <- getParsedChunk (rawConnection state) (AP.parse parseLine)
 
   newReqs <- atomically $ getOutstandingReqs (responseRequests state)
   let outstandingReqs = knownReqs ++ newReqs

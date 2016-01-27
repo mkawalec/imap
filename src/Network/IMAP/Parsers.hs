@@ -15,7 +15,7 @@ import Control.Monad (mzero)
 parseLine :: Parser (Either ErrorMessage CommandResult)
 parseLine = do
   parsed <- parseUntagged <|> parseTagged
-  string "\r"
+  string "\r\n"
   return parsed
 
 parseTagged :: Parser (Either ErrorMessage CommandResult)
