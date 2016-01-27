@@ -24,7 +24,7 @@ data IMAPConnection = IMAPConnection {
 
 data IMAPState = IMAPState {
   rawConnection :: !Connection,
-  commandReplies :: TVar (M.Map CommandId RequestResponse),
+  commandReplies :: TVar (M.Map CommandId [UntaggedResult]),
   responseRequests :: TQueue ResponseRequest
 }
 
@@ -62,7 +62,4 @@ data UntaggedResult = Flags [Flag]
 data CommandResult = Tagged TaggedResult | Untagged UntaggedResult
   deriving (Show)
 
-data RequestResponse = RequestResponse {
-  untaggedResults :: [UntaggedResult],
-  taggedResult :: Maybe TaggedResult
-} deriving (Show)
+type RequestResponse = Either TaggedResult [UntaggedResult]

@@ -23,6 +23,8 @@ import Control.Concurrent.STM.TVar
 import Control.Concurrent.STM.TMVar
 import Control.Monad.STM
 
+import System.Log.Logger (errorM)
+
 
 omitOneLine :: BSC.ByteString -> BSC.ByteString
 omitOneLine bytes = if BSC.length withLF > 0 then BSC.tail withLF else withLF
@@ -67,6 +69,12 @@ requestWatcher conn knownReqs = do
                 else return outstandingReqs
   requestWatcher conn nOutReqs
 
+constructResponse :: TaggedResult -> [UntaggedResult] -> RequestResponse
+constructResponse tagged msgs =
+  case resultState tagged of
+    OK -> Right msgs
+    _  -> Left tagged
+
 dispatchTagged :: IMAPState -> [ResponseRequest] -> TaggedResult -> IO [ResponseRequest]
 dispatchTagged state outstandingReqs response = do
   let reqId = commandId response
@@ -76,15 +84,14 @@ dispatchTagged state outstandingReqs response = do
   if isJust pendingRequest
     then atomically $ do
       repliesMap <- readTVar replies
-      let reply = if M.member reqId repliesMap
-                    then (repliesMap M.! reqId) {taggedResult = Just response}
-                    else RequestResponse {untaggedResults = [], taggedResult = Just response}
-      putTMVar (requestResponse . fromJust $ pendingRequest) reply
+      let replies = if M.member reqId repliesMap
+                      then repliesMap M.! reqId
+                      else []
+      let completeResponse = constructResponse response replies
+
+      putTMVar (requestResponse . fromJust $ pendingRequest) completeResponse
       writeTVar (commandReplies state) $ M.delete reqId repliesMap
-    else atomically $ do
-      repliesMap <- readTVar replies
-      let wrappedResponse = RequestResponse [] $ Just response
-      writeTVar replies $ M.insert reqId wrappedResponse repliesMap
+    else errorM "RequestWatcher" "Received a reply for an unknown request"
 
   return $ if isJust pendingRequest
             then filter (/= fromJust pendingRequest) outstandingReqs
@@ -101,10 +108,11 @@ dispatchUntagged conn state outstandingReqs response = do
     else atomically $ do
       let reqId = respRequestId . head $ outstandingReqs
       repliesMap <- readTVar $ commandReplies state
-      let reply = if M.member reqId repliesMap
-                    then repliesMap M.! reqId
-                    else RequestResponse [] Nothing
-      let updatedReply = reply {untaggedResults = response:(untaggedResults reply)}
+
+      let currentResponses = if M.member reqId repliesMap
+                              then repliesMap M.! reqId
+                              else []
+      let updatedReply = response:currentResponses
       writeTVar (commandReplies state) $ M.insert reqId updatedReply repliesMap
   return outstandingReqs
 
