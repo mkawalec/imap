@@ -18,6 +18,10 @@ cabal-version:       >=1.10
 library
   exposed-modules:
     Network.IMAP
+    Network.IMAP.Parsers
+    Network.IMAP.RequestWatcher
+    Network.IMAP.Types
+    Network.IMAP.Utils
   -- other-modules:
   -- other-extensions:
   build-depends:       base >=4.8 && <4.9,
