@@ -6,10 +6,7 @@ import qualified Data.STM.RollingQueue as RQ
 
 import Control.Concurrent (ThreadId)
 import Control.Concurrent.STM.TQueue (TQueue)
-import Control.Concurrent.STM.TVar (TVar)
-import Control.Concurrent.STM.TMVar (TMVar)
 import Network.Connection (Connection)
-import qualified Data.Map.Strict as M
 
 type ErrorMessage = T.Text
 type CommandId = BSC.ByteString
@@ -24,12 +21,11 @@ data IMAPConnection = IMAPConnection {
 
 data IMAPState = IMAPState {
   rawConnection :: !Connection,
-  commandReplies :: TVar (M.Map CommandId [UntaggedResult]),
   responseRequests :: TQueue ResponseRequest
 }
 
 data ResponseRequest = ResponseRequest {
-  requestResponse :: TMVar RequestResponse,
+  responseQueue :: TQueue CommandResult,
   respRequestId :: CommandId
 } deriving (Eq)
 
@@ -61,5 +57,3 @@ data UntaggedResult = Flags [Flag]
 
 data CommandResult = Tagged TaggedResult | Untagged UntaggedResult
   deriving (Show)
-
-type RequestResponse = Either TaggedResult [UntaggedResult]

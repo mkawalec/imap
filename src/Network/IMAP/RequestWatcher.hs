@@ -14,13 +14,10 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 
 import qualified Data.List as L
-import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 
 import qualified Data.STM.RollingQueue as RQ
 import Control.Concurrent.STM.TQueue
-import Control.Concurrent.STM.TVar
-import Control.Concurrent.STM.TMVar
 import Control.Monad.STM
 
 import System.Log.Logger (errorM)
@@ -55,7 +52,6 @@ requestWatcher conn knownReqs = do
   let state = imapState conn
 
   parsedLine <- getParsedChunk (rawConnection state) (AP.parse parseLine)
-
   newReqs <- atomically $ getOutstandingReqs (responseRequests state)
   let outstandingReqs = knownReqs ++ newReqs
 
@@ -64,33 +60,19 @@ requestWatcher conn knownReqs = do
                   let parsed = fromRight' parsedLine
 
                   case parsed of
-                    Tagged t -> dispatchTagged state outstandingReqs t
-                    Untagged u -> dispatchUntagged conn state outstandingReqs u
+                    Tagged t -> dispatchTagged outstandingReqs t
+                    Untagged u -> dispatchUntagged conn outstandingReqs u
                 else return outstandingReqs
   requestWatcher conn nOutReqs
 
-constructResponse :: TaggedResult -> [UntaggedResult] -> RequestResponse
-constructResponse tagged msgs =
-  case resultState tagged of
-    OK -> Right msgs
-    _  -> Left tagged
-
-dispatchTagged :: IMAPState -> [ResponseRequest] -> TaggedResult -> IO [ResponseRequest]
-dispatchTagged state outstandingReqs response = do
+dispatchTagged :: [ResponseRequest] -> TaggedResult -> IO [ResponseRequest]
+dispatchTagged outstandingReqs response = do
   let reqId = commandId response
   let pendingRequest = L.find (\r -> respRequestId r == reqId) outstandingReqs
-  let replies = commandReplies state
 
   if isJust pendingRequest
     then atomically $ do
-      repliesMap <- readTVar replies
-      let replies = if M.member reqId repliesMap
-                      then repliesMap M.! reqId
-                      else []
-      let completeResponse = constructResponse response replies
-
-      putTMVar (requestResponse . fromJust $ pendingRequest) completeResponse
-      writeTVar (commandReplies state) $ M.delete reqId repliesMap
+      writeTQueue (responseQueue . fromJust $ pendingRequest) $ Tagged response
     else errorM "RequestWatcher" "Received a reply for an unknown request"
 
   return $ if isJust pendingRequest
@@ -98,22 +80,15 @@ dispatchTagged state outstandingReqs response = do
             else outstandingReqs
 
 dispatchUntagged :: IMAPConnection ->
-                    IMAPState ->
                     [ResponseRequest] ->
                     UntaggedResult ->
                     IO [ResponseRequest]
-dispatchUntagged conn state outstandingReqs response = do
+dispatchUntagged conn outstandingReqs response = do
   if null outstandingReqs
     then atomically $ RQ.write (untaggedQueue conn) response
     else atomically $ do
-      let reqId = respRequestId . head $ outstandingReqs
-      repliesMap <- readTVar $ commandReplies state
-
-      let currentResponses = if M.member reqId repliesMap
-                              then repliesMap M.! reqId
-                              else []
-      let updatedReply = response:currentResponses
-      writeTVar (commandReplies state) $ M.insert reqId updatedReply repliesMap
+      let responseQ = responseQueue . head $ outstandingReqs
+      writeTQueue responseQ $ Untagged response
   return outstandingReqs
 
 getOutstandingReqs :: TQueue ResponseRequest ->

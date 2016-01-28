@@ -4,12 +4,9 @@ import Network.Connection
 import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.ByteString.Char8 as BSC
-import qualified Data.Map.Strict as M
 
 import qualified Data.STM.RollingQueue as RQ
 import Control.Concurrent.STM.TQueue
-import Control.Concurrent.STM.TVar
-import Control.Concurrent.STM.TMVar
 import Control.Monad.STM
 
 import Control.Concurrent (forkIO)
@@ -17,6 +14,9 @@ import Control.Concurrent (forkIO)
 import Network.IMAP.Types
 import Network.IMAP.RequestWatcher
 import Network.IMAP.Utils
+
+import Control.Monad (MonadPlus(..))
+import Control.Monad.Trans.Class (MonadTrans(..))
 
 
 connectServer :: IO IMAPConnection
@@ -29,12 +29,10 @@ connectServer = do
   connectionSetSecure context connection tlsSettings
 
   untaggedRespsQueue <- RQ.newIO 20
-  repliesMap <- newTVarIO M.empty
   responseRequestsQueue <- newTQueueIO
 
   let state = IMAPState {
     rawConnection = connection,
-    commandReplies =  repliesMap,
     responseRequests = responseRequestsQueue
   }
 
@@ -51,20 +49,36 @@ connectServer = do
     serverWatcherThread = Just watcherThreadId
   }
 
-sendCommand :: IMAPConnection -> BSC.ByteString -> IO RequestResponse
+sendCommand :: (MonadTrans t, MonadPlus (t IO)) =>
+               IMAPConnection ->
+               BSC.ByteString ->
+               t IO CommandResult
 sendCommand conn command = do
   let state = imapState conn
-  requestId <- genRequestId
+  requestId <- lift genRequestId
   let commandLine = BSC.concat [requestId, " ", command, "\r\n"]
 
-  connectionPut (rawConnection state) commandLine
-  responseWrapper <- atomically $ newEmptyTMVar
+  lift $ connectionPut (rawConnection state) commandLine
+  responseQ <- lift . atomically $ newTQueue
 
-  let responseRequest = ResponseRequest responseWrapper requestId
-  atomically $ writeTQueue (responseRequests state) responseRequest
-  atomically $ takeTMVar responseWrapper
+  let responseRequest = ResponseRequest responseQ requestId
+  lift . atomically $ writeTQueue (responseRequests state) responseRequest
+  readResults responseQ
 
-login :: IMAPConnection -> T.Text -> T.Text -> IO RequestResponse
+readResults :: (MonadTrans t, MonadPlus (t IO)) =>
+               TQueue CommandResult ->
+               t IO CommandResult
+readResults resultsQueue = do
+  nextResult <- lift . atomically . readTQueue $ resultsQueue
+  case nextResult of
+    Tagged _ -> return nextResult
+    Untagged _ -> (return nextResult) `mplus` readResults resultsQueue
+
+login :: (MonadTrans t, MonadPlus (t IO)) =>
+         IMAPConnection ->
+         T.Text ->
+         T.Text ->
+         t IO CommandResult
 login conn username password = sendCommand conn . encodeUtf8 $
   T.intercalate " " ["LOGIN", escapeText username, escapeText password]
 
