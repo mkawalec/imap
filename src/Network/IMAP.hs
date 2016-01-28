@@ -16,7 +16,7 @@ import Network.IMAP.RequestWatcher
 import Network.IMAP.Utils
 
 import Control.Monad (MonadPlus(..))
-import Control.Monad.Trans.Class (MonadTrans(..))
+import Control.Monad.IO.Class (MonadIO(..))
 
 
 connectServer :: IO IMAPConnection
@@ -49,36 +49,36 @@ connectServer = do
     serverWatcherThread = Just watcherThreadId
   }
 
-sendCommand :: (MonadTrans t, MonadPlus (t IO)) =>
+sendCommand :: (MonadPlus m, MonadIO m) =>
                IMAPConnection ->
                BSC.ByteString ->
-               t IO CommandResult
+               m CommandResult
 sendCommand conn command = do
   let state = imapState conn
-  requestId <- lift genRequestId
+  requestId <- liftIO genRequestId
   let commandLine = BSC.concat [requestId, " ", command, "\r\n"]
 
-  lift $ connectionPut (rawConnection state) commandLine
-  responseQ <- lift . atomically $ newTQueue
+  liftIO $ connectionPut (rawConnection state) commandLine
+  responseQ <- liftIO . atomically $ newTQueue
 
   let responseRequest = ResponseRequest responseQ requestId
-  lift . atomically $ writeTQueue (responseRequests state) responseRequest
+  liftIO . atomically $ writeTQueue (responseRequests state) responseRequest
   readResults responseQ
 
-readResults :: (MonadTrans t, MonadPlus (t IO)) =>
+readResults :: (MonadPlus m, MonadIO m) =>
                TQueue CommandResult ->
-               t IO CommandResult
+               m CommandResult
 readResults resultsQueue = do
-  nextResult <- lift . atomically . readTQueue $ resultsQueue
+  nextResult <- liftIO . atomically . readTQueue $ resultsQueue
   case nextResult of
     Tagged _ -> return nextResult
     Untagged _ -> (return nextResult) `mplus` readResults resultsQueue
 
-login :: (MonadTrans t, MonadPlus (t IO)) =>
+login :: (MonadPlus m, MonadIO m) =>
          IMAPConnection ->
          T.Text ->
          T.Text ->
-         t IO CommandResult
+         m CommandResult
 login conn username password = sendCommand conn . encodeUtf8 $
   T.intercalate " " ["LOGIN", escapeText username, escapeText password]
 
