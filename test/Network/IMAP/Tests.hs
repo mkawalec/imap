@@ -1,3 +1,4 @@
+{-# LANGUAGE OverlappingInstances #-}
 module Network.IMAP.Tests (tests) where
 
 import Network.IMAP
@@ -25,7 +26,8 @@ import qualified Debug.Trace as DT
 
 import Control.Monad.Trans.Identity
 
-
+instance Monad (IdentityT IO) where
+  (>>=) = (>>=)
 
 instance OverloadableConnection (IdentityT IO) where
   bytesWritten = unsafePerformIO . newTVarIO . Bytes $ BS.empty
