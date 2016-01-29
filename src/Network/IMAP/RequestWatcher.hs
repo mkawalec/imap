@@ -1,6 +1,7 @@
 module Network.IMAP.RequestWatcher (requestWatcher) where
 
 import Network.IMAP.Types
+import qualified Network.IMAP.Types
 import Network.IMAP.Parsers
 
 import Data.Either (isRight)
@@ -19,16 +20,18 @@ import qualified Data.Text as T
 import qualified Data.STM.RollingQueue as RQ
 import Control.Concurrent.STM.TQueue
 import Control.Monad.STM
+import Control.Monad.IO.Class (MonadIO, liftIO)
 
 import System.Log.Logger (errorM)
 
 
-requestWatcher :: IMAPConnection -> [ResponseRequest] -> IO ()
+requestWatcher :: (MonadIO m, OverloadableConnection m) => IMAPConnection ->
+  [ResponseRequest] -> m ()
 requestWatcher conn knownReqs = do
   let state = imapState conn
 
   parsedLine <- getParsedChunk (rawConnection state) (AP.parse parseLine)
-  newReqs <- atomically $ getOutstandingReqs (responseRequests state)
+  newReqs <- liftIO . atomically $ getOutstandingReqs (responseRequests state)
   let outstandingReqs = knownReqs ++ newReqs
 
   nOutReqs <- if isRight parsedLine
@@ -41,28 +44,29 @@ requestWatcher conn knownReqs = do
                 else return outstandingReqs
   requestWatcher conn nOutReqs
 
-dispatchTagged :: [ResponseRequest] -> TaggedResult -> IO [ResponseRequest]
+dispatchTagged :: (MonadIO m, OverloadableConnection m) => [ResponseRequest] ->
+  TaggedResult -> m [ResponseRequest]
 dispatchTagged outstandingReqs response = do
   let reqId = commandId response
   let pendingRequest = L.find (\r -> respRequestId r == reqId) outstandingReqs
 
   if isJust pendingRequest
-    then atomically $ do
+    then liftIO . atomically $ do
       writeTQueue (responseQueue . fromJust $ pendingRequest) $ Tagged response
-    else errorM "RequestWatcher" "Received a reply for an unknown request"
+    else liftIO $ errorM "RequestWatcher" "Received a reply for an unknown request"
 
   return $ if isJust pendingRequest
             then filter (/= fromJust pendingRequest) outstandingReqs
             else outstandingReqs
 
-dispatchUntagged :: IMAPConnection ->
+dispatchUntagged :: (MonadIO m, OverloadableConnection m) => IMAPConnection ->
                     [ResponseRequest] ->
                     UntaggedResult ->
-                    IO [ResponseRequest]
+                    m [ResponseRequest]
 dispatchUntagged conn outstandingReqs response = do
   if null outstandingReqs
-    then atomically $ RQ.write (untaggedQueue conn) response
-    else atomically $ do
+    then liftIO . atomically $ RQ.write (untaggedQueue conn) response
+    else liftIO . atomically $ do
       let responseQ = responseQueue . head $ outstandingReqs
       writeTQueue responseQ $ Untagged response
   return outstandingReqs
@@ -92,11 +96,11 @@ parseChunk parser chunk =
       Partial continuation -> ((Nothing, Just continuation), BS.empty)
       Done left result -> ((Just result, Nothing), left)
 
-getParsedChunk :: Connection ->
+getParsedChunk :: (MonadIO m, OverloadableConnection m) => Connection ->
                   (BSC.ByteString -> Result ParseResult) ->
-                  IO ParseResult
+                  m ParseResult
 getParsedChunk conn parser = do
-  (parsed, cont) <- connectionGetChunk' conn $ parseChunk parser
+  (parsed, cont) <- Network.IMAP.Types.connectionGetChunk' conn $ parseChunk parser
 
   if isJust cont
     then getParsedChunk conn $ fromJust cont

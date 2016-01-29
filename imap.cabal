@@ -42,10 +42,10 @@ library
   default-extensions:   OverloadedStrings,
                         GeneralizedNewtypeDeriving,
                         BangPatterns,
-                        OverlappingInstances,
                         ScopedTypeVariables,
                         TypeSynonymInstances,
-                        DeriveFunctor
+                        DeriveFunctor,
+                        FlexibleInstances
   ghc-options:          -Wall -fno-warn-unused-do-bind
 
 Test-Suite imap-test
@@ -75,7 +75,7 @@ Test-Suite imap-test
   default-extensions:   OverloadedStrings,
                         GeneralizedNewtypeDeriving,
                         BangPatterns,
-                        OverlappingInstances,
                         ScopedTypeVariables,
                         TypeSynonymInstances,
-                        DeriveFunctor
+                        DeriveFunctor,
+                        FlexibleInstances

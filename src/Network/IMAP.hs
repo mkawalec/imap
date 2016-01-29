@@ -8,8 +8,6 @@ import qualified Data.ByteString.Char8 as BSC
 import qualified Data.STM.RollingQueue as RQ
 import Control.Concurrent.STM.TQueue
 import Control.Monad.STM
-import Control.Concurrent.STM.TVar
-import Control.Concurrent.STM.TMVar
 
 import Control.Concurrent (forkIO)
 
@@ -19,17 +17,6 @@ import Network.IMAP.Utils
 
 import Control.Monad (MonadPlus(..))
 import Control.Monad.IO.Class (MonadIO(..))
-
-newtype Bytes a = Bytes BSC.ByteString
-class Monad m => OverloadableConnection m where
-  bytesWritten :: TVar (Bytes (m ()))
-  bytesToWrite :: TMVar (Bytes (m ()))
-
-  connectionPut :: Connection -> BSC.ByteString -> m ()
-  connectionGetChunk' :: Connection -> (BSC.ByteString -> (a, BSC.ByteString)) -> m a
-
-instance OverloadableConnection IO where
-  connectionPut = Network.Connection.connectionPut
 
 connectServer :: IO IMAPConnection
 connectServer = do
@@ -70,14 +57,14 @@ sendCommand conn command = do
   requestId <- liftIO genRequestId
   let commandLine = BSC.concat [requestId, " ", command, "\r\n"]
 
-  liftIO $ Network.IMAP.connectionPut (rawConnection state) commandLine
+  liftIO $ Network.IMAP.Types.connectionPut (rawConnection state) commandLine
   responseQ <- liftIO . atomically $ newTQueue
 
   let responseRequest = ResponseRequest responseQ requestId
   liftIO . atomically $ writeTQueue (responseRequests state) responseRequest
   readResults responseQ
 
-readResults :: (MonadPlus m, MonadIO m) =>
+readResults :: (MonadPlus m, MonadIO m, OverloadableConnection m) =>
                TQueue CommandResult ->
                m CommandResult
 readResults resultsQueue = do
