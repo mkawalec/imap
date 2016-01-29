@@ -26,10 +26,9 @@ import qualified Debug.Trace as DT
 
 import Control.Monad.Trans.Identity
 
-instance Monad (IdentityT IO) where
-  (>>=) = (>>=)
+type MyCon = IdentityT IO
 
-instance OverloadableConnection (IdentityT IO) where
+instance OverloadableConnection MyCon where
   bytesWritten = unsafePerformIO . newTVarIO . Bytes $ BS.empty
   bytesToWrite = unsafePerformIO $ newEmptyTMVarIO
 
@@ -48,7 +47,7 @@ testLogin = do
     connection <- liftIO connectServer
     DT.trace "before" $ return ()
     res <- login connection "a" "b"
-    Bytes written <- lift . atomically $ readTVar (bytesWritten :: TVar (Bytes (IO ())))
+    Bytes written <- lift . atomically $ readTVar (bytesWritten :: TVar (Bytes (MyCon ())))
     DT.traceShow written $ return ()
 
 tests :: TestTree
