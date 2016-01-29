@@ -22,32 +22,44 @@ import qualified Data.ByteString as BS
 import Control.Concurrent.MVar
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Debug.Trace as DT
+import Control.Monad.State.Strict as S
 
 import Control.Monad.Trans.Identity
 
+data FakeState = FS {
+  bytesWritten :: BS.ByteString,
+  bytesToRead :: BS.ByteString
+} deriving (Show)
 
+def :: FakeState
+def = FS {bytesWritten = BS.empty, bytesToRead = "error replu"}
 
-instance OverloadableConnection (IdentityT IO) where
-  bytesWritten = unsafePerformIO . newTVarIO . Bytes $ BS.empty
-  bytesToWrite = unsafePerformIO $ newEmptyTMVarIO
-
-  connectionPut _ input = do
+instance OverloadableConnection (S.StateT FakeState IO) where
+  connectionPut' _ input = do
     DT.trace ("writing " ++ (show input)) $ return ()
-    lift . atomically $ writeTVar (bytesWritten :: TVar (Bytes (IO ()))) (Bytes input)
-  connectionGetChunk' _ proc = lift . atomically $ do
-    Bytes bytes <- takeTMVar (bytesToWrite :: TMVar (Bytes (IO ())))
-    let (result, left) = proc bytes
-    putTMVar (bytesToWrite :: TMVar (Bytes (IO ()))) $ Bytes left
+    st <- S.get
+    S.put st { bytesWritten = input }
+  connectionGetChunk'' _ proc = do
+    DT.trace "reading" $ return ()
+    st <- S.get
+    let (result, left) = proc . bytesToRead $ st
+    S.put st { bytesToRead = left }
     return result
+
+runFakeIO :: FakeState -> StateT FakeState IO a -> IO (a, FakeState)
+runFakeIO = flip runStateT
 
 testLogin :: IO ()
 testLogin = do
-  runIdentityT $ do
-    connection <- liftIO connectServer
+  connection <- connectServer
+  DT.traceShow "connected" $ return ()
+  res <- runFakeIO def $ DT.trace "before do" $ do
     DT.trace "before" $ return ()
-    res <- login connection "a" "b"
-    Bytes written <- lift . atomically $ readTVar (bytesWritten :: TVar (Bytes (IO ())))
-    DT.traceShow written $ return ()
+    res <- lift $ login connection "a" "b"
+    st <- S.get
+    DT.trace ("got bytes " ++ show (st)) $ return ()
+  DT.traceShow "afterio" $ return ()
+  return . fst $ res
 
 tests :: TestTree
 tests = testGroup "Network.IMAP" [testCase "testLogin" testLogin]

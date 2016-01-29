@@ -63,14 +63,10 @@ data UntaggedResult = Flags [Flag]
 data CommandResult = Tagged TaggedResult | Untagged UntaggedResult
   deriving (Show)
 
-newtype Bytes a = Bytes BSC.ByteString
 class Monad m => OverloadableConnection m where
-  bytesWritten :: TVar (Bytes (m ()))
-  bytesToWrite :: TMVar (Bytes (m ()))
-
-  connectionPut :: Connection -> BSC.ByteString -> m ()
-  connectionGetChunk' :: Connection -> (BSC.ByteString -> (a, BSC.ByteString)) -> m a
+  connectionPut' :: Connection -> BSC.ByteString -> m ()
+  connectionGetChunk'' :: Connection -> (BSC.ByteString -> (a, BSC.ByteString)) -> m a
 
 instance OverloadableConnection IO where
-  connectionPut = DT.trace "using here" $ Network.Connection.connectionPut
-  connectionGetChunk' = DT.trace "chunk" $ Network.Connection.connectionGetChunk'
+  connectionPut' = DT.trace "using here" $ connectionPut
+  connectionGetChunk'' = DT.trace "chunk" $ connectionGetChunk'

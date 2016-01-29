@@ -21,6 +21,7 @@ import qualified Data.STM.RollingQueue as RQ
 import Control.Concurrent.STM.TQueue
 import Control.Monad.STM
 import Control.Monad.IO.Class (MonadIO, liftIO)
+import qualified Debug.Trace as DT
 
 import System.Log.Logger (errorM)
 
@@ -30,7 +31,10 @@ requestWatcher :: (MonadIO m, OverloadableConnection m) => IMAPConnection ->
 requestWatcher conn knownReqs = do
   let state = imapState conn
 
+  DT.trace "about to get IO" $ return ()
   parsedLine <- getParsedChunk (rawConnection state) (AP.parse parseLine)
+  DT.trace "gotIO" $ return ()
+  DT.traceShow parsedLine $ return ()
   newReqs <- liftIO . atomically $ getOutstandingReqs (responseRequests state)
   let outstandingReqs = knownReqs ++ newReqs
 
@@ -90,7 +94,7 @@ type ParseResult = Either ErrorMessage CommandResult
 parseChunk :: (BSC.ByteString -> Result ParseResult) ->
               BSC.ByteString ->
               ((Maybe ParseResult, Maybe (BSC.ByteString -> Result ParseResult)), BSC.ByteString)
-parseChunk parser chunk =
+parseChunk parser chunk = DT.traceShow chunk $
     case parser chunk of
       Fail left _ msg -> ((Just . Left . T.pack $ msg, Nothing), omitOneLine left)
       Partial continuation -> ((Nothing, Just continuation), BS.empty)
@@ -100,7 +104,7 @@ getParsedChunk :: (MonadIO m, OverloadableConnection m) => Connection ->
                   (BSC.ByteString -> Result ParseResult) ->
                   m ParseResult
 getParsedChunk conn parser = do
-  (parsed, cont) <- Network.IMAP.Types.connectionGetChunk' conn $ parseChunk parser
+  (parsed, cont) <- connectionGetChunk'' conn $ parseChunk parser
 
   if isJust cont
     then getParsedChunk conn $ fromJust cont

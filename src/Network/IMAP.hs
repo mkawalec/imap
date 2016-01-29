@@ -55,13 +55,13 @@ sendCommand :: (MonadPlus m, MonadIO m, OverloadableConnection m) =>
 sendCommand conn command = do
   let state = imapState conn
   requestId <- liftIO genRequestId
-  let commandLine = BSC.concat [requestId, " ", command, "\r\n"]
-
-  liftIO $ Network.IMAP.Types.connectionPut (rawConnection state) commandLine
   responseQ <- liftIO . atomically $ newTQueue
+  let commandLine = BSC.concat [requestId, " ", command, "\r\n"]
 
   let responseRequest = ResponseRequest responseQ requestId
   liftIO . atomically $ writeTQueue (responseRequests state) responseRequest
+
+  liftIO $ connectionPut' (rawConnection state) commandLine
   readResults responseQ
 
 readResults :: (MonadPlus m, MonadIO m, OverloadableConnection m) =>
