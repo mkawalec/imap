@@ -1,3 +1,4 @@
+{-# LANGUAGE OverlappingInstances #-}
 module Network.IMAP.Tests (tests) where
 
 import Network.IMAP
