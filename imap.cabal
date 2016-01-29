@@ -43,7 +43,9 @@ library
                         GeneralizedNewtypeDeriving,
                         BangPatterns,
                         OverlappingInstances,
-                        ScopedTypeVariables
+                        ScopedTypeVariables,
+                        TypeSynonymInstances,
+                        DeriveFunctor
   ghc-options:          -Wall -fno-warn-unused-do-bind
 
 Test-Suite imap-test
@@ -74,4 +76,6 @@ Test-Suite imap-test
                         GeneralizedNewtypeDeriving,
                         BangPatterns,
                         OverlappingInstances,
-                        ScopedTypeVariables
+                        ScopedTypeVariables,
+                        TypeSynonymInstances,
+                        DeriveFunctor

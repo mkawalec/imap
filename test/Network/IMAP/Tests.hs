@@ -17,29 +17,36 @@ import System.IO.Unsafe (unsafePerformIO)
 
 import qualified Data.ByteString as BS
 import Control.Concurrent.MVar
-import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Debug.Trace as DT
 
 
-instance OverloadableConnection IO where
+newtype LolIO a = IO a
+  deriving (Functor, Monad, Applicative)
+
+
+instance MonadIO LolIO where
+  liftIO val = return $ unsafePerformIO val
+
+instance OverloadableConnection LolIO where
   bytesWritten = unsafePerformIO . newTVarIO . Bytes $ BS.empty
   bytesToWrite = unsafePerformIO $ newEmptyTMVarIO
 
   connectionPut _ input = do
-    atomically $ writeTVar (bytesWritten :: TVar (Bytes (IO ()))) (Bytes input)
+    liftIO . atomically $ writeTVar (bytesWritten :: TVar (Bytes (LolIO ()))) (Bytes input)
     DT.trace ("writing " ++ (show input)) $ return ()
-  connectionGetChunk' _ proc = atomically $ do
-    Bytes bytes <- takeTMVar (bytesToWrite :: TMVar (Bytes (IO ())))
+  connectionGetChunk' _ proc = liftIO . atomically $ do
+    Bytes bytes <- takeTMVar (bytesToWrite :: TMVar (Bytes (LolIO ())))
     let (result, left) = proc bytes
-    putTMVar (bytesToWrite :: TMVar (Bytes (IO ()))) $ Bytes left
+    putTMVar (bytesToWrite :: TMVar (Bytes (LolIO ()))) $ Bytes left
     return result
 
-testLogin :: Assertion
+testLogin :: LolIO ()
 testLogin = do
   connection <- connectServer
   DT.trace "amin" $ return ()
   res <- login connection "a" "b"
-  Bytes written <- atomically $ readTVar (bytesWritten :: TVar (Bytes (IO ())))
+  Bytes written <- liftIO . atomically $ readTVar (bytesWritten :: TVar (Bytes (LolIO ())))
   DT.traceShow  $ return ()
   DT.traceShow written $ return ()
 
