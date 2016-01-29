@@ -64,6 +64,7 @@ data CommandResult = Tagged TaggedResult | Untagged UntaggedResult
   deriving (Show)
 
 newtype Bytes a = Bytes BSC.ByteString
+
 class Monad m => OverloadableConnection m where
   bytesWritten :: TVar (Bytes (m ()))
   bytesToWrite :: TMVar (Bytes (m ()))
