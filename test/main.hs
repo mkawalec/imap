@@ -1,6 +1,9 @@
 module Main where
 
 import System.Exit (exitFailure)
-import Network.IMAP.Tests
+import qualified Network.IMAP.Tests
+import Test.Tasty (defaultMain, testGroup)
 
-main = putStrLn "fails" >> exitFailure
+main :: IO ()
+main = defaultMain $ testGroup "Tests"
+  [Network.IMAP.Tests.tests]

@@ -41,7 +41,9 @@ library
   default-language:     Haskell2010
   default-extensions:   OverloadedStrings,
                         GeneralizedNewtypeDeriving,
-                        BangPatterns
+                        BangPatterns,
+                        OverlappingInstances,
+                        ScopedTypeVariables
   ghc-options:          -Wall -fno-warn-unused-do-bind
 
 Test-Suite imap-test
@@ -70,4 +72,6 @@ Test-Suite imap-test
   default-language:     Haskell2010
   default-extensions:   OverloadedStrings,
                         GeneralizedNewtypeDeriving,
-                        BangPatterns
+                        BangPatterns,
+                        OverlappingInstances,
+                        ScopedTypeVariables

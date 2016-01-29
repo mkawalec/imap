@@ -23,30 +23,6 @@ import Control.Monad.STM
 import System.Log.Logger (errorM)
 
 
-omitOneLine :: BSC.ByteString -> BSC.ByteString
-omitOneLine bytes = if BSC.length withLF > 0 then BSC.tail withLF else withLF
-  where withLF = BSC.dropWhile (/= '\n') bytes
-
-type ParseResult = Either ErrorMessage CommandResult
-parseChunk :: (BSC.ByteString -> Result ParseResult) ->
-              BSC.ByteString ->
-              ((Maybe ParseResult, Maybe (BSC.ByteString -> Result ParseResult)), BSC.ByteString)
-parseChunk parser chunk =
-    case parser chunk of
-      Fail left _ msg -> ((Just . Left . T.pack $ msg, Nothing), omitOneLine left)
-      Partial continuation -> ((Nothing, Just continuation), BS.empty)
-      Done left result -> ((Just result, Nothing), left)
-
-getParsedChunk :: Connection ->
-                  (BSC.ByteString -> Result ParseResult) ->
-                  IO ParseResult
-getParsedChunk conn parser = do
-  (parsed, cont) <- connectionGetChunk' conn $ parseChunk parser
-
-  if isJust cont
-    then getParsedChunk conn $ fromJust cont
-    else return . fromJust $ parsed
-
 requestWatcher :: IMAPConnection -> [ResponseRequest] -> IO ()
 requestWatcher conn knownReqs = do
   let state = imapState conn
@@ -101,3 +77,27 @@ getOutstandingReqs reqsQueue = do
       req <- readTQueue reqsQueue
       next <- getOutstandingReqs reqsQueue
       return (req:next)
+
+omitOneLine :: BSC.ByteString -> BSC.ByteString
+omitOneLine bytes = if BSC.length withLF > 0 then BSC.tail withLF else withLF
+  where withLF = BSC.dropWhile (/= '\n') bytes
+
+type ParseResult = Either ErrorMessage CommandResult
+parseChunk :: (BSC.ByteString -> Result ParseResult) ->
+              BSC.ByteString ->
+              ((Maybe ParseResult, Maybe (BSC.ByteString -> Result ParseResult)), BSC.ByteString)
+parseChunk parser chunk =
+    case parser chunk of
+      Fail left _ msg -> ((Just . Left . T.pack $ msg, Nothing), omitOneLine left)
+      Partial continuation -> ((Nothing, Just continuation), BS.empty)
+      Done left result -> ((Just result, Nothing), left)
+
+getParsedChunk :: Connection ->
+                  (BSC.ByteString -> Result ParseResult) ->
+                  IO ParseResult
+getParsedChunk conn parser = do
+  (parsed, cont) <- connectionGetChunk' conn $ parseChunk parser
+
+  if isJust cont
+    then getParsedChunk conn $ fromJust cont
+    else return . fromJust $ parsed
