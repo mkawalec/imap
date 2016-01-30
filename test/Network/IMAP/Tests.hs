@@ -56,7 +56,7 @@ testLogin = do
   DT.traceShow "connected" $ return ()
   res <- runFakeIO def $ DT.trace "before do" $ do
     DT.trace "before" $ return ()
-    res <- lift $ login connection "a" "b"
+    res <- login connection "a" "b"
     st <- S.get
     DT.trace ("got bytes " ++ show (st)) $ return ()
   DT.traceShow "afterio" $ return ()

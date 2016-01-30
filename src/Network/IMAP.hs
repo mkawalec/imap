@@ -61,7 +61,7 @@ sendCommand conn command = do
   let responseRequest = ResponseRequest responseQ requestId
   liftIO . atomically $ writeTQueue (responseRequests state) responseRequest
 
-  liftIO $ connectionPut' (rawConnection state) commandLine
+  connectionPut' (rawConnection state) commandLine
   readResults responseQ
 
 readResults :: (MonadPlus m, MonadIO m, OverloadableConnection m) =>
