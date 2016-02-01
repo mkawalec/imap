@@ -1,4 +1,3 @@
-{-# LANGUAGE OverlappingInstances #-}
 module Network.IMAP.Tests (tests) where
 
 import Network.IMAP
@@ -25,40 +24,24 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Debug.Trace as DT
 import Control.Monad.State.Strict as S
 
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import qualified Data.Text as T
+import ListT (toList, ListT)
+
 import Control.Monad.Trans.Identity
-
-data FakeState = FS {
-  bytesWritten :: BS.ByteString,
-  bytesToRead :: BS.ByteString
-} deriving (Show)
-
-def :: FakeState
-def = FS {bytesWritten = BS.empty, bytesToRead = "error replu"}
-
-instance OverloadableConnection (S.StateT FakeState IO) where
-  connectionPut' _ input = do
-    DT.trace ("writing " ++ (show input)) $ return ()
-    st <- S.get
-    S.put st { bytesWritten = input }
-  connectionGetChunk'' _ proc = do
-    DT.trace "reading" $ return ()
-    st <- S.get
-    let (result, left) = proc . bytesToRead $ st
-    S.put st { bytesToRead = left }
-    return result
-
-runFakeIO :: FakeState -> StateT FakeState IO a -> IO (a, FakeState)
-runFakeIO = flip runStateT
+import Test.Utils
 
 testLogin :: IO ()
 testLogin = do
   connection <- connectServer
-  DT.traceShow "connected" $ return ()
-  res <- runFakeIO def $ DT.trace "before do" $ do
-    DT.trace "before" $ return ()
-    res <- login connection "a" "b"
-    st <- S.get
-    DT.trace ("got bytes " ++ show (st)) $ return ()
+  res <- runFakeIO def {reactToInput = respond "NO [ALERT] Invalid credentials (Failure)"} $
+    withWatcher connection $ do
+      st <- S.get
+      DT.traceShow (reactToInput st "abc efg") $ return ()
+      res <- login connection "a" "b"
+      st <- S.get
+      DT.trace ("got bytes " ++ show (bytesWritten st)) $ return ()
+
   DT.traceShow "afterio" $ return ()
   return . fst $ res
 

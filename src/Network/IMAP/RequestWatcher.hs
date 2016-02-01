@@ -1,7 +1,6 @@
 module Network.IMAP.RequestWatcher (requestWatcher) where
 
 import Network.IMAP.Types
-import qualified Network.IMAP.Types
 import Network.IMAP.Parsers
 
 import Data.Either (isRight)
@@ -26,17 +25,16 @@ import qualified Debug.Trace as DT
 import System.Log.Logger (errorM)
 
 
-requestWatcher :: (MonadIO m, OverloadableConnection m) => IMAPConnection ->
-  [ResponseRequest] -> m ()
+requestWatcher :: (MonadIO m, Universe m) => IMAPConnection -> [ResponseRequest] -> m ()
 requestWatcher conn knownReqs = do
   let state = imapState conn
 
-  DT.trace "about to get IO" $ return ()
+  DT.trace "befffffoooooorrrre" $ return ()
   parsedLine <- getParsedChunk (rawConnection state) (AP.parse parseLine)
-  DT.trace "gotIO" $ return ()
-  DT.traceShow parsedLine $ return ()
+  DT.trace "afterrr" $ return ()
   newReqs <- liftIO . atomically $ getOutstandingReqs (responseRequests state)
   let outstandingReqs = knownReqs ++ newReqs
+  DT.trace ("haz parsed line " ++ (show parsedLine)) $ return ()
 
   nOutReqs <- if isRight parsedLine
                 then do
@@ -48,7 +46,7 @@ requestWatcher conn knownReqs = do
                 else return outstandingReqs
   requestWatcher conn nOutReqs
 
-dispatchTagged :: (MonadIO m, OverloadableConnection m) => [ResponseRequest] ->
+dispatchTagged :: (MonadIO m, Universe m) => [ResponseRequest] ->
   TaggedResult -> m [ResponseRequest]
 dispatchTagged outstandingReqs response = do
   let reqId = commandId response
@@ -63,7 +61,7 @@ dispatchTagged outstandingReqs response = do
             then filter (/= fromJust pendingRequest) outstandingReqs
             else outstandingReqs
 
-dispatchUntagged :: (MonadIO m, OverloadableConnection m) => IMAPConnection ->
+dispatchUntagged :: (MonadIO m, Universe m) => IMAPConnection ->
                     [ResponseRequest] ->
                     UntaggedResult ->
                     m [ResponseRequest]
@@ -100,11 +98,13 @@ parseChunk parser chunk = DT.traceShow chunk $
       Partial continuation -> ((Nothing, Just continuation), BS.empty)
       Done left result -> ((Just result, Nothing), left)
 
-getParsedChunk :: (MonadIO m, OverloadableConnection m) => Connection ->
+getParsedChunk :: (MonadIO m, Universe m) => Connection ->
                   (BSC.ByteString -> Result ParseResult) ->
                   m ParseResult
 getParsedChunk conn parser = do
+  DT.trace "getting chunk" $ return ()
   (parsed, cont) <- connectionGetChunk'' conn $ parseChunk parser
+  DT.trace "got chubk" $ return ()
 
   if isJust cont
     then getParsedChunk conn $ fromJust cont

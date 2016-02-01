@@ -3,15 +3,14 @@ module Network.IMAP.Types where
 import qualified Data.Text as T
 import qualified Data.ByteString.Char8 as BSC
 import qualified Data.STM.RollingQueue as RQ
-import Control.Concurrent.STM.TVar
-import Control.Concurrent.STM.TMVar
 
 import Control.Concurrent (ThreadId)
 import Control.Concurrent.STM.TQueue (TQueue)
-import Network.Connection (Connection)
+import Network.Connection (Connection, connectionPut, connectionGetChunk')
+import ListT (ListT)
+import Control.Monad (MonadPlus(..))
+import Control.Monad.IO.Class (liftIO)
 import qualified Debug.Trace as DT
-import System.IO.Unsafe (unsafePerformIO)
-import Network.Connection
 
 type ErrorMessage = T.Text
 type CommandId = BSC.ByteString
@@ -63,10 +62,14 @@ data UntaggedResult = Flags [Flag]
 data CommandResult = Tagged TaggedResult | Untagged UntaggedResult
   deriving (Show)
 
-class Monad m => OverloadableConnection m where
+class Monad m => Universe m where
   connectionPut' :: Connection -> BSC.ByteString -> m ()
   connectionGetChunk'' :: Connection -> (BSC.ByteString -> (a, BSC.ByteString)) -> m a
 
-instance OverloadableConnection IO where
+instance Universe IO where
   connectionPut' = DT.trace "using here" $ connectionPut
   connectionGetChunk'' = DT.trace "chunk" $ connectionGetChunk'
+
+instance Universe (ListT IO) where
+  connectionPut' c d = DT.trace "a" $ liftIO $ connectionPut c d
+  connectionGetChunk'' c cont = DT.trace "b" $ liftIO $ connectionGetChunk' c cont

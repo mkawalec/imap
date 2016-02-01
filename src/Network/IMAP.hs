@@ -48,7 +48,7 @@ connectServer = do
     serverWatcherThread = Just watcherThreadId
   }
 
-sendCommand :: (MonadPlus m, MonadIO m, OverloadableConnection m) =>
+sendCommand :: (MonadPlus m, MonadIO m, Universe m) =>
                IMAPConnection ->
                BSC.ByteString ->
                m CommandResult
@@ -64,7 +64,7 @@ sendCommand conn command = do
   connectionPut' (rawConnection state) commandLine
   readResults responseQ
 
-readResults :: (MonadPlus m, MonadIO m, OverloadableConnection m) =>
+readResults :: (MonadPlus m, MonadIO m, Universe m) =>
                TQueue CommandResult ->
                m CommandResult
 readResults resultsQueue = do
@@ -73,7 +73,7 @@ readResults resultsQueue = do
     Tagged _ -> return nextResult
     Untagged _ -> (return nextResult) `mplus` readResults resultsQueue
 
-login :: (MonadPlus m, MonadIO m, OverloadableConnection m) =>
+login :: (MonadPlus m, MonadIO m, Universe m) =>
          IMAPConnection ->
          T.Text ->
          T.Text ->
