@@ -33,7 +33,7 @@ data ResponseRequest = ResponseRequest {
   respRequestId :: CommandId
 } deriving (Eq)
 
-data ResultState = OK | NO | BAD deriving (Show)
+data ResultState = OK | NO | BAD deriving (Show, Eq)
 
 data Flag = FSeen
           | FAnswered
@@ -43,13 +43,13 @@ data Flag = FSeen
           | FRecent
           | FAny
           | FOther T.Text
-  deriving (Show)
+  deriving (Show, Eq)
 
 data TaggedResult = TaggedResult {
                       commandId :: CommandId,
                       resultState :: !ResultState,
                       resultRest :: BSC.ByteString
-                    } deriving (Show)
+                    } deriving (Show, Eq)
 
 data UntaggedResult = Flags [Flag]
                     | Exists Int
@@ -57,19 +57,19 @@ data UntaggedResult = Flags [Flag]
                     | Unseen Int
                     | PermanentFlags [Flag]
                     | UIDNext Int
-                    deriving (Show)
+                    deriving (Show, Eq)
 
 data CommandResult = Tagged TaggedResult | Untagged UntaggedResult
-  deriving (Show)
+  deriving (Show, Eq)
 
 class Monad m => Universe m where
   connectionPut' :: Connection -> BSC.ByteString -> m ()
   connectionGetChunk'' :: Connection -> (BSC.ByteString -> (a, BSC.ByteString)) -> m a
 
 instance Universe IO where
-  connectionPut' = DT.trace "using here" $ connectionPut
-  connectionGetChunk'' = DT.trace "chunk" $ connectionGetChunk'
+  connectionPut' = connectionPut
+  connectionGetChunk'' = connectionGetChunk'
 
 instance Universe (ListT IO) where
-  connectionPut' c d = DT.trace "a" $ liftIO $ connectionPut c d
-  connectionGetChunk'' c cont = DT.trace "b" $ liftIO $ connectionGetChunk' c cont
+  connectionPut' c d = liftIO $ connectionPut c d
+  connectionGetChunk'' c cont = liftIO $ connectionGetChunk' c cont

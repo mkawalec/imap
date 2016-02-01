@@ -8,7 +8,7 @@ import qualified Test.QuickCheck.Monadic as QC
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase)
 import Test.Tasty.QuickCheck (testProperty)
-import Test.HUnit (Assertion, (@?=))
+import Test.HUnit (Assertion, (@?=), assertFailure)
 
 import Control.Concurrent.STM.TVar
 import Control.Concurrent.STM.TMVar
@@ -31,19 +31,19 @@ import ListT (toList, ListT)
 import Control.Monad.Trans.Identity
 import Test.Utils
 
-testLogin :: IO ()
-testLogin = do
+testLoginFailure :: Assertion
+testLoginFailure = do
   connection <- connectServer
-  res <- runFakeIO def {reactToInput = respond "NO [ALERT] Invalid credentials (Failure)"} $
-    withWatcher connection $ do
-      st <- S.get
-      DT.traceShow (reactToInput st "abc efg") $ return ()
-      res <- login connection "a" "b"
-      st <- S.get
-      DT.trace ("got bytes " ++ show (bytesWritten st)) $ return ()
+  defState <- def
+  (res, state) <- runFakeIO defState {reactToInput = respond "NO [ALERT] Invalid credentials (Failure)"} $
+    withWatcher connection $ login connection "a" "b"
 
-  DT.traceShow "afterio" $ return ()
-  return . fst $ res
+  written <- atomically . readTVar . bytesWritten $ state
+
+  case last res of
+    Untagged _ -> assertFailure "The last item should be Tagged"
+    Tagged r -> resultState r @?= NO
+  return ()
 
 tests :: TestTree
-tests = testGroup "Network.IMAP" [testCase "testLogin" testLogin]
+tests = testGroup "Network.IMAP" [testCase "Login Failure" testLoginFailure]

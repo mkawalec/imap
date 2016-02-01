@@ -29,12 +29,9 @@ requestWatcher :: (MonadIO m, Universe m) => IMAPConnection -> [ResponseRequest]
 requestWatcher conn knownReqs = do
   let state = imapState conn
 
-  DT.trace "befffffoooooorrrre" $ return ()
   parsedLine <- getParsedChunk (rawConnection state) (AP.parse parseLine)
-  DT.trace "afterrr" $ return ()
   newReqs <- liftIO . atomically $ getOutstandingReqs (responseRequests state)
   let outstandingReqs = knownReqs ++ newReqs
-  DT.trace ("haz parsed line " ++ (show parsedLine)) $ return ()
 
   nOutReqs <- if isRight parsedLine
                 then do
@@ -92,7 +89,7 @@ type ParseResult = Either ErrorMessage CommandResult
 parseChunk :: (BSC.ByteString -> Result ParseResult) ->
               BSC.ByteString ->
               ((Maybe ParseResult, Maybe (BSC.ByteString -> Result ParseResult)), BSC.ByteString)
-parseChunk parser chunk = DT.traceShow chunk $
+parseChunk parser chunk =
     case parser chunk of
       Fail left _ msg -> ((Just . Left . T.pack $ msg, Nothing), omitOneLine left)
       Partial continuation -> ((Nothing, Just continuation), BS.empty)
@@ -102,9 +99,7 @@ getParsedChunk :: (MonadIO m, Universe m) => Connection ->
                   (BSC.ByteString -> Result ParseResult) ->
                   m ParseResult
 getParsedChunk conn parser = do
-  DT.trace "getting chunk" $ return ()
   (parsed, cont) <- connectionGetChunk'' conn $ parseChunk parser
-  DT.trace "got chubk" $ return ()
 
   if isJust cont
     then getParsedChunk conn $ fromJust cont
