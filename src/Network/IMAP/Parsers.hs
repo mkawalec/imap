@@ -8,6 +8,7 @@ import Data.Word8
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8)
 import qualified Data.ByteString.Char8 as BSC
+import qualified Debug.Trace as DT
 
 import Control.Applicative
 import Control.Monad (mzero)
@@ -53,7 +54,7 @@ parseUntagged = do
 parseFlag :: Parser Flag
 parseFlag = do
   word8 _backslash
-  flagName <- takeWhile1 isLetter
+  flagName <- takeWhile1 (\c -> isLetter c || c == _asterisk)
   case flagName of
             "Seen" -> return FSeen
             "Answered" -> return FAnswered

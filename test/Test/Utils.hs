@@ -1,30 +1,24 @@
 module Test.Utils where
 
 import Control.Concurrent.STM.TVar
-import Control.Concurrent.STM.TMVar
 import Control.Monad.STM
 import Network.Connection
-import System.IO.Unsafe (unsafePerformIO)
 import Control.Monad.Trans.Class
-import Control.Monad
 
 import qualified Data.ByteString as BS
-import Control.Concurrent.MVar
-import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.State.Strict as S
 
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Data.Text as T
 import Network.IMAP.Types
-import Control.Concurrent.STM.TVar
 import ListT (ListT)
-import Control.Concurrent (threadDelay, yield)
+import Control.Concurrent (threadDelay)
 import Network.IMAP.RequestWatcher (requestWatcher)
+import Network.IMAP (connectServer)
 import Control.Concurrent.MonadIO (fork, HasFork, fork, killThread)
 import Control.Concurrent (forkIO)
-import Data.Maybe (fromJust, isJust)
-import Control.Monad (when)
-import ListT (toList, ListT(..))
+import Data.Maybe (fromJust)
+import ListT (toList)
 
 data FakeState = FS {
   bytesWritten :: TVar BS.ByteString,
@@ -34,12 +28,12 @@ data FakeState = FS {
 
 def :: IO FakeState
 def = do
-  bytesWritten <- newTVarIO BS.empty
-  bytesToRead <- newTVarIO BS.empty
+  written <- newTVarIO BS.empty
+  toRead <- newTVarIO BS.empty
 
   return FS {
-    bytesWritten = bytesWritten,
-    bytesToRead = bytesToRead,
+    bytesWritten = written,
+    bytesToRead = toRead,
     reactToInput = id
   }
 
@@ -80,27 +74,35 @@ instance HasFork (S.StateT FakeState IO) where
     threadId <- forkIO $ (S.runStateT em s >>= return . fst)
     return (threadId, defState)
 
+runFakeIOWithReply :: IMAPConnection -> T.Text -> T.Text -> ListT (StateT FakeState IO) a -> IO ([a], FakeState)
+runFakeIOWithReply conn prefix reply action = do
+  defState <- def
+  runFakeIO defState {reactToInput = respond prefix reply} $ withWatcher conn $ action
+
+getConn :: IO IMAPConnection
+getConn = do
+  conn <- connectServer
+  killThread . fromJust . serverWatcherThread $ conn
+  return conn {
+    serverWatcherThread = Nothing
+  }
+
 runFakeIO :: FakeState -> StateT FakeState IO a -> IO (a, FakeState)
 runFakeIO = flip S.runStateT
 
-withWatcher :: IMAPConnection -> StateT FakeState IO a -> StateT FakeState IO [a]
-withWatcher conn action = toList $ withWatcher' conn action
-
-withWatcher' :: IMAPConnection -> StateT FakeState IO a -> ListT (StateT FakeState IO) a
-withWatcher' conn action = do
-  -- Kill the old watcher
-  st <- lift $ S.get
-  when (isJust . serverWatcherThread $ conn) $ do
-    lift . killThread . fromJust . serverWatcherThread $ conn
-  watcherThreadId <- lift . fork $ requestWatcher conn []
-
-  (res, newState) <- lift . lift $ S.runStateT action st
-  lift $ killThread watcherThreadId
-  lift $ S.put newState
-  return res
-
-
-
-respond :: T.Text -> BS.ByteString -> BS.ByteString
-respond response input = encodeUtf8 $ T.concat [commandId, " ", response, "\r\n"]
+respond :: T.Text -> T.Text -> BS.ByteString -> BS.ByteString
+respond prefix response input =
+    encodeUtf8 $ T.concat [prefix, "\r\n", commandId, " ", response, "\r\n"]
   where commandId = head . T.splitOn " " $ decodeUtf8 input
+
+withWatcher :: IMAPConnection -> ListT (StateT FakeState IO) a -> StateT FakeState IO [a]
+withWatcher conn action = withWatcher' conn action
+
+withWatcher' :: IMAPConnection -> ListT (StateT FakeState IO) a -> StateT FakeState IO [a]
+withWatcher' conn action = do
+  st <- S.get
+  watcherThreadId <- fork $ requestWatcher conn []
+
+  (res, _) <- lift $ S.runStateT (toList action) st
+  lift $ killThread watcherThreadId
+  return res

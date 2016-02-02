@@ -3,6 +3,7 @@ module Network.IMAP.Types where
 import qualified Data.Text as T
 import qualified Data.ByteString.Char8 as BSC
 import qualified Data.STM.RollingQueue as RQ
+import Data.DeriveTH
 
 import Control.Concurrent (ThreadId)
 import Control.Concurrent.STM.TQueue (TQueue)
@@ -43,7 +44,8 @@ data Flag = FSeen
           | FRecent
           | FAny
           | FOther T.Text
-  deriving (Show, Eq)
+  deriving (Show, Eq, Ord)
+
 
 data TaggedResult = TaggedResult {
                       commandId :: CommandId,
@@ -57,10 +59,14 @@ data UntaggedResult = Flags [Flag]
                     | Unseen Int
                     | PermanentFlags [Flag]
                     | UIDNext Int
-                    deriving (Show, Eq)
+                    deriving (Show, Eq, Ord)
 
 data CommandResult = Tagged TaggedResult | Untagged UntaggedResult
   deriving (Show, Eq)
+
+$(derive makeIs ''Flag)
+$(derive makeIs ''UntaggedResult)
+$(derive makeIs ''CommandResult)
 
 class Monad m => Universe m where
   connectionPut' :: Connection -> BSC.ByteString -> m ()

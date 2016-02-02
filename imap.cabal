@@ -37,7 +37,8 @@ library
                         hslogger == 1.2.9,
                         transformers == 0.4.2.0,
                         list-t == 0.4.5.1,
-                        monadIO == 0.10.1.4
+                        monadIO == 0.10.1.4,
+                        derive == 2.5.23
   hs-source-dirs:       src
   default-language:     Haskell2010
   default-extensions:   OverloadedStrings,
@@ -46,7 +47,8 @@ library
                         ScopedTypeVariables,
                         TypeSynonymInstances,
                         DeriveFunctor,
-                        FlexibleInstances
+                        FlexibleInstances,
+                        TemplateHaskell
   ghc-options:          -Wall -fno-warn-unused-do-bind
 
 Test-Suite imap-test
@@ -67,6 +69,7 @@ Test-Suite imap-test
                         transformers == 0.4.2.0,
                         list-t == 0.4.5.1,
                         monadIO == 0.10.1.4,
+                        derive == 2.5.23,
 
                         tasty == 0.11.0.2,
                         HUnit == 1.3.1.1,
@@ -81,4 +84,5 @@ Test-Suite imap-test
                         ScopedTypeVariables,
                         TypeSynonymInstances,
                         DeriveFunctor,
-                        FlexibleInstances
+                        FlexibleInstances,
+                        TemplateHaskell
