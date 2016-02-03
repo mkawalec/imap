@@ -63,7 +63,7 @@ sendCommand :: (MonadPlus m, MonadIO m, Universe m) =>
                IMAPConnection ->
                BSC.ByteString ->
                m CommandResult
-sendCommand conn command = do
+sendCommand conn command = ifNotDisconnected conn $ do
   let state = imapState conn
   requestId <- liftIO genRequestId
   responseQ <- liftIO . atomically $ newTQueue
@@ -74,6 +74,18 @@ sendCommand conn command = do
 
   connectionPut' (rawConnection state) commandLine
   readResults responseQ
+
+ifNotDisconnected :: (MonadPlus m, MonadIO m, Universe m) =>
+                     IMAPConnection -> m CommandResult -> m CommandResult
+ifNotDisconnected conn action = do
+  connState <- liftIO . atomically . readTVar $ connectionState conn
+  if isDisconnected connState
+    then return . Tagged $ TaggedResult {
+        commandId = "noid",
+        resultState = BAD,
+        resultRest = "Cannot post a command when watcher is disconnected"
+      }
+    else action
 
 login :: (MonadPlus m, MonadIO m, Universe m) =>
          IMAPConnection ->

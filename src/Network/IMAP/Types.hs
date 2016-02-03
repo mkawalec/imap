@@ -101,6 +101,7 @@ type SimpleResult = Either ErrorMessage [UntaggedResult]
 $(derive makeIs ''Flag)
 $(derive makeIs ''UntaggedResult)
 $(derive makeIs ''CommandResult)
+$(derive makeIs ''ConnectionState)
 
 class Monad m => Universe m where
   connectionPut' :: Connection -> BSC.ByteString -> m ()
