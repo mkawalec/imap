@@ -59,6 +59,7 @@ data Capability = CIMAP4
                 | CCondstore
                 | CEsearch
                 | CUtf8 T.Text
+                | CAuth T.Text
                 | CListExtended
                 | CListStatus
                 | CAppendLimit Int
@@ -74,6 +75,7 @@ data TaggedResult = TaggedResult {
 
 data UntaggedResult = Flags [Flag]
                     | Exists Int
+                    | Bye
                     | HighestModSeq Int
                     | Recent Int
                     | Unseen Int

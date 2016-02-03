@@ -50,7 +50,8 @@ parseUntagged = do
             parseUidNext <|>
             parseUidValidity <|>
             parseCapabilityList <|>
-            (Right <$> parseOk)
+            (Right <$> parseOk) <|>
+            (Right <$> parseBye)
 
   -- Take the rest
   _ <- AP.takeWhile (/= _cr)
@@ -105,6 +106,9 @@ parseNumber constructor prefix postfix = do
 parseExists :: Parser (Either ErrorMessage UntaggedResult)
 parseExists = parseNumber Exists "" "EXISTS"
 
+parseBye :: Parser UntaggedResult
+parseBye = string "BYE" *> AP.takeWhile (/= _cr) *> return Bye
+
 parseRecent :: Parser (Either ErrorMessage UntaggedResult)
 parseRecent = parseNumber Recent "" "RECENT"
 
@@ -150,6 +154,7 @@ parseCapabilityWithValue = do
   case T.toLower name of
     "compress" -> return . Right . CCompress $ decodedValue
     "utf8" -> return . Right . CUtf8 $ decodedValue
+    "auth" -> return . Right . CAuth $ decodedValue
     "appendlimit" -> return (valAsNumber >>= return . CAppendLimit)
     _ -> return . Right $ COther name (Just decodedValue)
 

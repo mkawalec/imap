@@ -2,6 +2,9 @@ module Network.IMAP (
   connectServer,
   sendCommand,
   login,
+  logout,
+  capability,
+  noop,
   simpleFormat
 ) where
 
@@ -77,6 +80,15 @@ login :: (MonadPlus m, MonadIO m, Universe m) =>
          m CommandResult
 login conn username password = sendCommand conn . encodeUtf8 $
   T.intercalate " " ["LOGIN", escapeText username, escapeText password]
+
+capability :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> m CommandResult
+capability conn = sendCommand conn "CAPABILITY"
+
+noop :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> m CommandResult
+noop conn = sendCommand conn "NOOP"
+
+logout :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> m CommandResult
+logout conn = sendCommand conn "LOGOUT"
 
 simpleFormat :: (MonadIO o, Universe o) =>
                 ListT o CommandResult -> o SimpleResult
