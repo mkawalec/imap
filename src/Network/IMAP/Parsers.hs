@@ -6,8 +6,10 @@ import Data.Attoparsec.ByteString
 import qualified Data.Attoparsec.ByteString as AP
 import Data.Word8
 import qualified Data.Text as T
+import qualified Data.Text.Read as TR
 import Data.Text.Encoding (decodeUtf8)
 import qualified Data.ByteString.Char8 as BSC
+import Data.Either.Combinators (mapBoth, mapRight)
 import qualified Debug.Trace as DT
 
 import Control.Applicative
@@ -45,11 +47,19 @@ parseUntagged = do
             parseUnseen <|>
             (Right <$> parsePermanentFlags) <|>
             parseUidNext <|>
-            parseUidValidity
+            parseUidValidity <|>
+            parseCapabilityList <|>
+            (Right <$> parseOk)
 
   -- Take the rest
   _ <- AP.takeWhile (/= _cr)
   return $ result >>= Right . Untagged
+
+parseOk :: Parser UntaggedResult
+parseOk = do
+  string "OK "
+  contents <- AP.takeWhile (/= _cr)
+  return . OKResult . decodeUtf8 $ contents
 
 parseFlag :: Parser Flag
 parseFlag = do
@@ -78,7 +88,8 @@ parseFlagList = word8 _parenleft *>
 parseFlags :: Parser (Either ErrorMessage UntaggedResult)
 parseFlags = Right . Flags <$> (string "FLAGS " *> parseFlagList)
 
-parseNumber :: (Int -> UntaggedResult) -> BSC.ByteString -> BSC.ByteString -> Parser (Either ErrorMessage UntaggedResult)
+parseNumber :: (Int -> UntaggedResult) -> BSC.ByteString ->
+  BSC.ByteString -> Parser (Either ErrorMessage UntaggedResult)
 parseNumber constructor prefix postfix = do
   if not . BSC.null $ prefix
     then string prefix <* word8 _space
@@ -113,6 +124,55 @@ parseUidNext = parseOkResp $ parseNumber UIDNext "UIDNEXT" ""
 
 parseUidValidity :: Parser (Either ErrorMessage UntaggedResult)
 parseUidValidity = parseOkResp $ parseNumber UIDNext "UIDVALIDITY" ""
+
+parseCapabilityList :: Parser (Either ErrorMessage UntaggedResult)
+parseCapabilityList = do
+  string "CAPABILITY "
+  caps <- (parseCapabilityWithValue <|> parseNamedCapability) `sepBy` word8 _space
+  return . (mapRight Capabilities) $ (mapM id) caps
+
+isAtomChar :: Word8 -> Bool
+isAtomChar c = isLetter c || isNumber c || c == _hyphen
+
+parseCapabilityWithValue :: Parser (Either ErrorMessage Capability)
+parseCapabilityWithValue = do
+  name <- (AP.takeWhile1 isAtomChar >>= return . decodeUtf8)
+  word8 _equal
+  value <- AP.takeWhile1 isAtomChar
+
+  let decodedValue = decodeUtf8 value
+  let decodingError = T.concat ["Error deconding '", decodedValue, "' as integer"]
+  let valAsNumber = mapBoth (const decodingError) fst $ TR.decimal decodedValue
+  case T.toLower name of
+    "compress" -> return . Right . CCompress $ decodedValue
+    "utf8" -> return . Right . CUtf8 $ decodedValue
+    "appendlimit" -> return (valAsNumber >>= return . CAppendLimit)
+    _ -> return . Right $ COther name (Just decodedValue)
+
+parseNamedCapability :: Parser (Either ErrorMessage Capability)
+parseNamedCapability = do
+  name <- AP.takeWhile isAtomChar
+  let decodedName = decodeUtf8 name
+
+  return . Right $ case T.toLower decodedName of
+    "imap4" -> CIMAP4
+    "imap4rev1" -> CIMAP4
+    "unselect" -> CUnselect
+    "idle" -> CIdle
+    "namespace" -> CNamespace
+    "quota" -> CQuota
+    "id" -> CId
+    "children" -> CChildren
+    "uidplus" -> CUIDPlus
+    "enable" -> CEnable
+    "move" -> CMove
+    "condstore" -> CCondstore
+    "esearch" -> CEsearch
+    "list-extended" -> CListExtended
+    "list-status" -> CListStatus
+    _ -> if T.head decodedName == 'X'
+          then CExperimental decodedName
+          else COther decodedName Nothing
 
 toInt :: BSC.ByteString -> Either ErrorMessage Int
 toInt bs = if null parsed

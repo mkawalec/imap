@@ -9,9 +9,7 @@ import Control.Concurrent (ThreadId)
 import Control.Concurrent.STM.TQueue (TQueue)
 import Network.Connection (Connection, connectionPut, connectionGetChunk')
 import ListT (ListT)
-import Control.Monad (MonadPlus(..))
 import Control.Monad.IO.Class (liftIO)
-import qualified Debug.Trace as DT
 
 type ErrorMessage = T.Text
 type CommandId = BSC.ByteString
@@ -46,6 +44,27 @@ data Flag = FSeen
           | FOther T.Text
   deriving (Show, Eq, Ord)
 
+data Capability = CIMAP4
+                | CUnselect
+                | CIdle
+                | CNamespace
+                | CQuota
+                | CId
+                | CExperimental T.Text
+                | CChildren
+                | CUIDPlus
+                | CCompress T.Text
+                | CEnable
+                | CMove
+                | CCondstore
+                | CEsearch
+                | CUtf8 T.Text
+                | CListExtended
+                | CListStatus
+                | CAppendLimit Int
+                | COther T.Text (Maybe T.Text)
+                deriving (Show, Eq, Ord)
+
 
 data TaggedResult = TaggedResult {
                       commandId :: CommandId,
@@ -59,10 +78,14 @@ data UntaggedResult = Flags [Flag]
                     | Unseen Int
                     | PermanentFlags [Flag]
                     | UIDNext Int
+                    | OKResult T.Text
+                    | Capabilities [Capability]
                     deriving (Show, Eq, Ord)
 
 data CommandResult = Tagged TaggedResult | Untagged UntaggedResult
   deriving (Show, Eq)
+
+type SimpleResult = Either ErrorMessage [UntaggedResult]
 
 $(derive makeIs ''Flag)
 $(derive makeIs ''UntaggedResult)

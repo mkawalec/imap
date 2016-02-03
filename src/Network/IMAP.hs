@@ -1,8 +1,13 @@
-module Network.IMAP where
+module Network.IMAP (
+  connectServer,
+  sendCommand,
+  login,
+  simpleFormat
+) where
 
 import Network.Connection
 import qualified Data.Text as T
-import Data.Text.Encoding (encodeUtf8)
+import Data.Text.Encoding (encodeUtf8, decodeUtf8)
 import qualified Data.ByteString.Char8 as BSC
 
 import qualified Data.STM.RollingQueue as RQ
@@ -17,6 +22,7 @@ import Network.IMAP.Utils
 
 import Control.Monad (MonadPlus(..))
 import Control.Monad.IO.Class (MonadIO(..))
+import ListT (toList, ListT)
 
 connectServer :: IO IMAPConnection
 connectServer = do
@@ -64,6 +70,25 @@ sendCommand conn command = do
   connectionPut' (rawConnection state) commandLine
   readResults responseQ
 
+login :: (MonadPlus m, MonadIO m, Universe m) =>
+         IMAPConnection ->
+         T.Text ->
+         T.Text ->
+         m CommandResult
+login conn username password = sendCommand conn . encodeUtf8 $
+  T.intercalate " " ["LOGIN", escapeText username, escapeText password]
+
+simpleFormat :: (MonadIO o, Universe o) =>
+                ListT o CommandResult -> o SimpleResult
+simpleFormat action = do
+  results <- toList action
+  case last results of
+    Untagged _ -> return . Left $ "Last result is untagged, something went wrong"
+    Tagged t -> case resultState t of
+      OK -> return . Right $ map (\(Untagged u) -> u) (init results)
+      _ -> return . Left $ T.concat ["Error '", decodeUtf8 . resultRest $ t, "'"]
+
+
 readResults :: (MonadPlus m, MonadIO m, Universe m) =>
                TQueue CommandResult ->
                m CommandResult
@@ -72,14 +97,6 @@ readResults resultsQueue = do
   case nextResult of
     Tagged _ -> return nextResult
     Untagged _ -> (return nextResult) `mplus` readResults resultsQueue
-
-login :: (MonadPlus m, MonadIO m, Universe m) =>
-         IMAPConnection ->
-         T.Text ->
-         T.Text ->
-         m CommandResult
-login conn username password = sendCommand conn . encodeUtf8 $
-  T.intercalate " " ["LOGIN", escapeText username, escapeText password]
 
 escapeText :: T.Text -> T.Text
 escapeText t = T.replace "{" "\\{" $
