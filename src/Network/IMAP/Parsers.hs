@@ -43,6 +43,7 @@ parseUntagged = do
   string "* "
   result <- parseFlags <|>
             parseExists <|>
+            parseHighestModSeq <|>
             parseRecent <|>
             parseUnseen <|>
             (Right <$> parsePermanentFlags) <|>
@@ -123,7 +124,10 @@ parseUidNext :: Parser (Either ErrorMessage UntaggedResult)
 parseUidNext = parseOkResp $ parseNumber UIDNext "UIDNEXT" ""
 
 parseUidValidity :: Parser (Either ErrorMessage UntaggedResult)
-parseUidValidity = parseOkResp $ parseNumber UIDNext "UIDVALIDITY" ""
+parseUidValidity = parseOkResp $ parseNumber UIDValidity "UIDVALIDITY" ""
+
+parseHighestModSeq :: Parser (Either ErrorMessage UntaggedResult)
+parseHighestModSeq = parseOkResp $ parseNumber HighestModSeq "HIGHESTMODSEQ" ""
 
 parseCapabilityList :: Parser (Either ErrorMessage UntaggedResult)
 parseCapabilityList = do

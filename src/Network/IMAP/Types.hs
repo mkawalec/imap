@@ -74,10 +74,12 @@ data TaggedResult = TaggedResult {
 
 data UntaggedResult = Flags [Flag]
                     | Exists Int
+                    | HighestModSeq Int
                     | Recent Int
                     | Unseen Int
                     | PermanentFlags [Flag]
                     | UIDNext Int
+                    | UIDValidity Int
                     | OKResult T.Text
                     | Capabilities [Capability]
                     deriving (Show, Eq, Ord)
