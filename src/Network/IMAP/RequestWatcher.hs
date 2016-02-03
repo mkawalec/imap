@@ -18,6 +18,8 @@ import qualified Data.Text as T
 
 import qualified Data.STM.RollingQueue as RQ
 import Control.Concurrent.STM.TQueue
+import Control.Concurrent.STM.TVar
+import Control.Concurrent (killThread)
 import Control.Monad.STM
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Debug.Trace as DT
@@ -37,15 +39,37 @@ requestWatcher conn knownReqs = do
                 then do
                   let parsed = fromRight' parsedLine
 
+                  updateConnState conn parsed
                   case parsed of
-                    Tagged t -> dispatchTagged outstandingReqs t
+                    Tagged t -> dispatchTagged conn outstandingReqs t
                     Untagged u -> dispatchUntagged conn outstandingReqs u
                 else return outstandingReqs
   requestWatcher conn nOutReqs
 
-dispatchTagged :: (MonadIO m, Universe m) => [ResponseRequest] ->
-  TaggedResult -> m [ResponseRequest]
-dispatchTagged outstandingReqs response = do
+updateConnState :: (MonadIO m, Universe m) => IMAPConnection -> CommandResult -> m ()
+updateConnState conn command = do
+  let connState = connectionState conn
+
+  case command of
+    Untagged u -> case u of
+                    OKResult _ -> liftIO . atomically $ writeTVar connState Connected
+                    Bye -> liftIO . atomically $ writeTVar connState Disconnected
+
+                    _ -> return ()
+    _ -> return ()
+
+shouldIDie :: (MonadIO m, Universe m) => IMAPConnection -> m ()
+shouldIDie conn = liftIO $ do
+  threadId <- atomically . readTVar $ serverWatcherThread conn
+  atomically $ writeTVar (serverWatcherThread conn) Nothing
+
+  if isJust threadId
+    then liftIO . killThread $ fromJust threadId
+    else return ()
+
+dispatchTagged :: (MonadIO m, Universe m) => IMAPConnection ->
+  [ResponseRequest] -> TaggedResult -> m [ResponseRequest]
+dispatchTagged conn outstandingReqs response = do
   let reqId = commandId response
   let pendingRequest = L.find (\r -> respRequestId r == reqId) outstandingReqs
 
@@ -54,6 +78,7 @@ dispatchTagged outstandingReqs response = do
       writeTQueue (responseQueue . fromJust $ pendingRequest) $ Tagged response
     else liftIO $ errorM "RequestWatcher" "Received a reply for an unknown request"
 
+  shouldIDie conn
   return $ if isJust pendingRequest
             then filter (/= fromJust pendingRequest) outstandingReqs
             else outstandingReqs

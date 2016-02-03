@@ -82,10 +82,11 @@ runFakeIOWithReply conn prefix reply action = do
 getConn :: IO IMAPConnection
 getConn = do
   conn <- connectServer
-  killThread . fromJust . serverWatcherThread $ conn
-  return conn {
-    serverWatcherThread = Nothing
-  }
+  threadId <- atomically . readTVar $ serverWatcherThread conn
+  killThread . fromJust $ threadId
+
+  atomically $ writeTVar (serverWatcherThread conn) Nothing
+  return conn
 
 runFakeIO :: FakeState -> StateT FakeState IO a -> IO (a, FakeState)
 runFakeIO = flip S.runStateT

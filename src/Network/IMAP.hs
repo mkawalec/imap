@@ -15,6 +15,7 @@ import qualified Data.ByteString.Char8 as BSC
 
 import qualified Data.STM.RollingQueue as RQ
 import Control.Concurrent.STM.TQueue
+import Control.Concurrent.STM.TVar
 import Control.Monad.STM
 
 import Control.Concurrent (forkIO)
@@ -38,6 +39,8 @@ connectServer = do
 
   untaggedRespsQueue <- RQ.newIO 20
   responseRequestsQueue <- newTQueueIO
+  connState <- newTVarIO UndefinedState
+  watcherId <- newTVarIO Nothing
 
   let state = IMAPState {
     rawConnection = connection,
@@ -45,17 +48,16 @@ connectServer = do
   }
 
   let conn = IMAPConnection {
-    connectionState = Connected,
-    serverWatcherThread = Nothing,
+    connectionState = connState,
+    serverWatcherThread = watcherId,
     untaggedQueue = untaggedRespsQueue,
     imapState = state
   }
 
   watcherThreadId <- forkIO $ requestWatcher conn []
+  atomically $ writeTVar watcherId $ Just watcherThreadId
 
-  return conn {
-    serverWatcherThread = Just watcherThreadId
-  }
+  return conn
 
 sendCommand :: (MonadPlus m, MonadIO m, Universe m) =>
                IMAPConnection ->

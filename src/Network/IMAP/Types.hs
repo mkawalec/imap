@@ -3,6 +3,7 @@ module Network.IMAP.Types where
 import qualified Data.Text as T
 import qualified Data.ByteString.Char8 as BSC
 import qualified Data.STM.RollingQueue as RQ
+import Control.Concurrent.STM.TVar (TVar)
 import Data.DeriveTH
 
 import Control.Concurrent (ThreadId)
@@ -14,11 +15,17 @@ import Control.Monad.IO.Class (liftIO)
 type ErrorMessage = T.Text
 type CommandId = BSC.ByteString
 
-data ConnectionState = Connected | Authenticated | Selected T.Text
+data ConnectionState = UndefinedState
+                     | Connected
+                     | Authenticated
+                     | Selected T.Text
+                     | Disconnected
+                     deriving (Show)
+
 data IMAPConnection = IMAPConnection {
-  connectionState :: !ConnectionState, --Unused, will have the current state in a TVar
+  connectionState :: TVar ConnectionState,
   untaggedQueue :: RQ.RollingQueue UntaggedResult,
-  serverWatcherThread :: Maybe ThreadId,
+  serverWatcherThread :: TVar (Maybe ThreadId),
   imapState :: IMAPState
 }
 
