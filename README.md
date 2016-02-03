@@ -7,6 +7,9 @@
 - [x] Output with ListT (support streaming)
 - [x] A testing framework
 - [ ] Support moar commands
+  - [ ] All the little commands
+  - [ ] Search
+  - [ ] Fetch
 - [x] Ability to disconnect (support bye)
 - [ ] Connection timeout
 - [ ] Enable configuration when connecting
