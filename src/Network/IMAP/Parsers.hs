@@ -9,6 +9,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Read as TR
 import Data.Text.Encoding (decodeUtf8)
 import qualified Data.ByteString.Char8 as BSC
+import qualified Data.ByteString as BS
 import Data.Either.Combinators (mapBoth, mapRight)
 import qualified Debug.Trace as DT
 
@@ -51,7 +52,8 @@ parseUntagged = do
             parseUidValidity <|>
             parseCapabilityList <|>
             (Right <$> parseOk) <|>
-            (Right <$> parseBye)
+            (Right <$> parseBye) <|>
+            (Right <$> parseListResp)
 
   -- Take the rest
   _ <- AP.takeWhile (/= _cr)
@@ -132,6 +134,31 @@ parseUidValidity = parseOkResp $ parseNumber UIDValidity "UIDVALIDITY" ""
 
 parseHighestModSeq :: Parser (Either ErrorMessage UntaggedResult)
 parseHighestModSeq = parseOkResp $ parseNumber HighestModSeq "HIGHESTMODSEQ" ""
+
+parseNameAttribute :: Parser NameAttribute
+parseNameAttribute = do
+  string "\\"
+  name <- AP.takeWhile1 isAtomChar
+  return $ case name of
+          "Noinferiors" -> Noinferiors
+          "Noselect" -> Noselect
+          "Marked" -> Marked
+          "Unmarked" -> Unmarked
+          "HasNoChildren" -> HasNoChildren
+          _ -> OtherNameAttr $ decodeUtf8 name
+
+parseListResp :: Parser UntaggedResult
+parseListResp = do
+  string "LIST ("
+  nameAttributes <- parseNameAttribute `sepBy` word8 _space
+
+  string ") \""
+  delimiter <- (AP.anyWord8 >>= return . decodeUtf8 . BS.singleton)
+  string "\" "
+  name <- (AP.takeWhile1 (/= _cr) >>= return . decodeUtf8)
+
+  let actualName = T.dropAround (== '"') name
+  return $ ListR nameAttributes delimiter actualName
 
 parseCapabilityList :: Parser (Either ErrorMessage UntaggedResult)
 parseCapabilityList = do

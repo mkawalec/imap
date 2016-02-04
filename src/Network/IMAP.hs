@@ -12,6 +12,7 @@ module Network.IMAP (
   noop,
   subscribe,
   unsubscribe,
+  list,
   simpleFormat
 ) where
 
@@ -133,7 +134,10 @@ unsubscribe :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
   T.Text -> m CommandResult
 unsubscribe = oneParamCommand "UNSUBSCRIBE"
 
-
+list :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
+  T.Text -> m CommandResult
+list conn inboxName = sendCommand conn wholeCommand
+  where wholeCommand = encodeUtf8 $ T.intercalate " " ["LIST", "\"\"", inboxName]
 
 simpleFormat :: (MonadIO o, Universe o) =>
                 ListT o CommandResult -> o SimpleResult

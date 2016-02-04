@@ -78,6 +78,14 @@ data TaggedResult = TaggedResult {
                       resultRest :: BSC.ByteString
                     } deriving (Show, Eq)
 
+data NameAttribute = Noinferiors
+                   | Noselect
+                   | Marked
+                   | Unmarked
+                   | HasNoChildren
+                   | OtherNameAttr T.Text
+                   deriving (Show, Eq, Ord)
+
 data UntaggedResult = Flags [Flag]
                     | Exists Int
                     | Bye
@@ -89,6 +97,7 @@ data UntaggedResult = Flags [Flag]
                     | UIDValidity Int
                     | OKResult T.Text
                     | Capabilities [Capability]
+                    | ListR [NameAttribute] T.Text T.Text
                     deriving (Show, Eq, Ord)
 
 data CommandResult = Tagged TaggedResult | Untagged UntaggedResult

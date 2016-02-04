@@ -15,7 +15,7 @@
     - [x] RENAME
     - [x] SUBSCRIBE
     - [x] UNSUBSCRIBE
-    - [ ] LIST
+    - [x] LIST
     - [ ] LSUB
     - [ ] STATUS
     - [ ] APPEND
