@@ -11,7 +11,7 @@
     - [x] SELECT
     - [x] EXAMINE
     - [x] CREATE
-    - [ ] DELETE
+    - [x] DELETE
     - [ ] RENAME
     - [ ] SUBSCRIBE
     - [ ] UNSUBSCRIBE

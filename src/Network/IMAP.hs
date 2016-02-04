@@ -95,17 +95,26 @@ noop conn = sendCommand conn "NOOP"
 logout :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> m CommandResult
 logout conn = sendCommand conn "LOGOUT"
 
-select :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> T.Text -> m CommandResult
-select conn mailboxName = sendCommand conn command
-  where command = encodeUtf8 $ T.append "SELECT " mailboxName
+oneParamCommand :: (MonadPlus m, MonadIO m, Universe m) => T.Text ->
+  IMAPConnection -> T.Text -> m CommandResult
+oneParamCommand commandName conn mailboxName = sendCommand conn wholeCommand
+  where wholeCommand = encodeUtf8 $ T.intercalate " " [commandName, mailboxName]
 
-examine :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> T.Text -> m CommandResult
-examine conn mailboxName = sendCommand conn command
-  where command = encodeUtf8 $ T.append "EXAMINE " mailboxName
+select :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
+  T.Text -> m CommandResult
+select = oneParamCommand "SELECT"
 
-create :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> T.Text -> m CommandResult
-create conn mailboxName = sendCommand conn command
-  where command = encodeUtf8 $ T.append "CREATE " mailboxName
+examine :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
+  T.Text -> m CommandResult
+examine = oneParamCommand "EXAMINE"
+
+create :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
+  T.Text -> m CommandResult
+create = oneParamCommand "CREATE"
+
+delete :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
+  T.Text -> m CommandResult
+delete = oneParamCommand "DELETE"
 
 simpleFormat :: (MonadIO o, Universe o) =>
                 ListT o CommandResult -> o SimpleResult
