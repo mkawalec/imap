@@ -17,8 +17,6 @@ type CommandId = BSC.ByteString
 
 data ConnectionState = UndefinedState
                      | Connected
-                     | Authenticated
-                     | Selected T.Text
                      | Disconnected
                      deriving (Show)
 

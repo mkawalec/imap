@@ -4,6 +4,7 @@ module Network.IMAP (
   login,
   logout,
   capability,
+  select,
   noop,
   simpleFormat
 ) where
@@ -91,6 +92,10 @@ noop conn = sendCommand conn "NOOP"
 
 logout :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> m CommandResult
 logout conn = sendCommand conn "LOGOUT"
+
+select :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> T.Text -> m CommandResult
+select conn mailboxName = sendCommand conn command
+  where command = encodeUtf8 $ T.append "SELECT " mailboxName
 
 simpleFormat :: (MonadIO o, Universe o) =>
                 ListT o CommandResult -> o SimpleResult

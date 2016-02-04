@@ -8,8 +8,26 @@
 - [x] A testing framework
 - [ ] Support moar commands
   - [ ] All the little commands
+    - [x] SELECT
+    - [ ] EXAMINE
+    - [ ] CREATE
+    - [ ] DELETE
+    - [ ] RENAME
+    - [ ] SUBSCRIBE
+    - [ ] UNSUBSCRIBE
+    - [ ] LIST
+    - [ ] LSUB
+    - [ ] STATUS
+    - [ ] APPEND
+    - [ ] CHECK
+    - [ ] CLOSE
+    - [ ] EXPUNGE
   - [ ] Search
   - [ ] Fetch
+  - [ ] Rest
+    - [ ] STARTTLS
+    - [ ] AUTHENTICATE
+    - [ ] BYE at any time
 - [x] Ability to disconnect (support bye)
 - [ ] Connection timeout
 - [ ] Enable configuration when connecting
