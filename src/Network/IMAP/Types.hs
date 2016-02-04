@@ -88,6 +88,7 @@ data NameAttribute = Noinferiors
 
 data UntaggedResult = Flags [Flag]
                     | Exists Int
+                    | Expunge Int
                     | Bye
                     | HighestModSeq Int
                     | Recent Int

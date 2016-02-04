@@ -55,7 +55,8 @@ parseUntagged = do
             (Right <$> parseBye) <|>
             (Right <$> parseListLikeResp "LIST") <|>
             (Right <$> parseListLikeResp "LSUB") <|>
-            parseStatus
+            parseStatus <|>
+            parseExpunge
 
   -- Take the rest
   _ <- AP.takeWhile (/= _cr)
@@ -238,6 +239,13 @@ parseNamedCapability = do
     _ -> if T.head decodedName == 'X'
           then CExperimental decodedName
           else COther decodedName Nothing
+
+parseExpunge :: Parser (Either ErrorMessage UntaggedResult)
+parseExpunge = do
+  msgId <- AP.takeWhile1 isDigit
+  string " EXPUNGE"
+
+  return $ toInt msgId >>= return . Expunge
 
 isAtomChar :: Word8 -> Bool
 isAtomChar c = isLetter c || isNumber c || c == _hyphen || c == _quotedbl

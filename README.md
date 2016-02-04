@@ -20,7 +20,7 @@
     - [x] STATUS
     - [x] CHECK
     - [x] CLOSE
-    - [ ] EXPUNGE
+    - [x] EXPUNGE
   - [ ] Search
   - [ ] Fetch
   - [ ] Rest

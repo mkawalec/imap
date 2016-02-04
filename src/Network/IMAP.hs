@@ -17,6 +17,7 @@ module Network.IMAP (
   status,
   Network.IMAP.check,
   close,
+  expunge,
   simpleFormat
 ) where
 
@@ -158,6 +159,9 @@ check conn = sendCommand conn "CHECK"
 
 close :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> m CommandResult
 close conn = sendCommand conn "CLOSE"
+
+expunge :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> m CommandResult
+expunge conn = sendCommand conn "EXPUNGE"
 
 simpleFormat :: (MonadIO o, Universe o) =>
                 ListT o CommandResult -> o SimpleResult
