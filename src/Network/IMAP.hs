@@ -10,6 +10,8 @@ module Network.IMAP (
   delete,
   rename,
   noop,
+  subscribe,
+  unsubscribe,
   simpleFormat
 ) where
 
@@ -122,6 +124,14 @@ rename :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
   T.Text -> T.Text -> m CommandResult
 rename conn fromName toName = sendCommand conn wholeCommand
   where wholeCommand = encodeUtf8 $ T.intercalate " " ["RENAME", fromName, toName]
+
+subscribe :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
+  T.Text -> m CommandResult
+subscribe = oneParamCommand "SUBSCRIBE"
+
+unsubscribe :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
+  T.Text -> m CommandResult
+unsubscribe = oneParamCommand "UNSUBSCRIBE"
 
 
 

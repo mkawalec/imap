@@ -13,8 +13,8 @@
     - [x] CREATE
     - [x] DELETE
     - [x] RENAME
-    - [ ] SUBSCRIBE
-    - [ ] UNSUBSCRIBE
+    - [x] SUBSCRIBE
+    - [x] UNSUBSCRIBE
     - [ ] LIST
     - [ ] LSUB
     - [ ] STATUS
