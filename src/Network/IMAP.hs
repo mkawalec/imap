@@ -97,6 +97,10 @@ select :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> T.Text -> m 
 select conn mailboxName = sendCommand conn command
   where command = encodeUtf8 $ T.append "SELECT " mailboxName
 
+examine :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> T.Text -> m CommandResult
+examine conn mailboxName = sendCommand conn command
+  where command = encodeUtf8 $ T.append "EXAMINE " mailboxName
+
 simpleFormat :: (MonadIO o, Universe o) =>
                 ListT o CommandResult -> o SimpleResult
 simpleFormat action = do

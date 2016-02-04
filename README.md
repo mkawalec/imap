@@ -9,7 +9,7 @@
 - [ ] Support moar commands
   - [ ] All the little commands
     - [x] SELECT
-    - [ ] EXAMINE
+    - [x] EXAMINE
     - [ ] CREATE
     - [ ] DELETE
     - [ ] RENAME
