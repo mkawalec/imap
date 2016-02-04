@@ -75,18 +75,6 @@ sendCommand conn command = ifNotDisconnected conn $ do
   connectionPut' (rawConnection state) commandLine
   readResults responseQ
 
-ifNotDisconnected :: (MonadPlus m, MonadIO m, Universe m) =>
-                     IMAPConnection -> m CommandResult -> m CommandResult
-ifNotDisconnected conn action = do
-  connState <- liftIO . atomically . readTVar $ connectionState conn
-  if isDisconnected connState
-    then return . Tagged $ TaggedResult {
-        commandId = "noid",
-        resultState = BAD,
-        resultRest = "Cannot post a command when watcher is disconnected"
-      }
-    else action
-
 login :: (MonadPlus m, MonadIO m, Universe m) =>
          IMAPConnection ->
          T.Text ->
@@ -113,19 +101,3 @@ simpleFormat action = do
     Tagged t -> case resultState t of
       OK -> return . Right $ map (\(Untagged u) -> u) (init results)
       _ -> return . Left $ T.concat ["Error '", decodeUtf8 . resultRest $ t, "'"]
-
-
-readResults :: (MonadPlus m, MonadIO m, Universe m) =>
-               TQueue CommandResult ->
-               m CommandResult
-readResults resultsQueue = do
-  nextResult <- liftIO . atomically . readTQueue $ resultsQueue
-  case nextResult of
-    Tagged _ -> return nextResult
-    Untagged _ -> (return nextResult) `mplus` readResults resultsQueue
-
-escapeText :: T.Text -> T.Text
-escapeText t = T.replace "{" "\\{" $
-             T.replace "}" "\\}" $
-             T.replace "\"" "\\\"" $
-             T.replace "\\" "\\\\" t
