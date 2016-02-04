@@ -10,7 +10,7 @@
   - [ ] All the little commands
     - [x] SELECT
     - [x] EXAMINE
-    - [ ] CREATE
+    - [x] CREATE
     - [ ] DELETE
     - [ ] RENAME
     - [ ] SUBSCRIBE

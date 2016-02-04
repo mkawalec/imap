@@ -5,6 +5,8 @@ module Network.IMAP (
   logout,
   capability,
   select,
+  examine,
+  create,
   noop,
   simpleFormat
 ) where
@@ -100,6 +102,10 @@ select conn mailboxName = sendCommand conn command
 examine :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> T.Text -> m CommandResult
 examine conn mailboxName = sendCommand conn command
   where command = encodeUtf8 $ T.append "EXAMINE " mailboxName
+
+create :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> T.Text -> m CommandResult
+create conn mailboxName = sendCommand conn command
+  where command = encodeUtf8 $ T.append "CREATE " mailboxName
 
 simpleFormat :: (MonadIO o, Universe o) =>
                 ListT o CommandResult -> o SimpleResult
