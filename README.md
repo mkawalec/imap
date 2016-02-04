@@ -12,7 +12,7 @@
     - [x] EXAMINE
     - [x] CREATE
     - [x] DELETE
-    - [ ] RENAME
+    - [x] RENAME
     - [ ] SUBSCRIBE
     - [ ] UNSUBSCRIBE
     - [ ] LIST

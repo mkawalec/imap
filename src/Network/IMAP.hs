@@ -7,6 +7,8 @@ module Network.IMAP (
   select,
   examine,
   create,
+  delete,
+  rename,
   noop,
   simpleFormat
 ) where
@@ -115,6 +117,13 @@ create = oneParamCommand "CREATE"
 delete :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
   T.Text -> m CommandResult
 delete = oneParamCommand "DELETE"
+
+rename :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
+  T.Text -> T.Text -> m CommandResult
+rename conn fromName toName = sendCommand conn wholeCommand
+  where wholeCommand = encodeUtf8 $ T.intercalate " " ["RENAME", fromName, toName]
+
+
 
 simpleFormat :: (MonadIO o, Universe o) =>
                 ListT o CommandResult -> o SimpleResult
