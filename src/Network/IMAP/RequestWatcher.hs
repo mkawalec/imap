@@ -31,7 +31,7 @@ requestWatcher :: (MonadIO m, Universe m) => IMAPConnection -> [ResponseRequest]
 requestWatcher conn knownReqs = do
   let state = imapState conn
 
-  parsedLine <- getParsedChunk (rawConnection state) (AP.parse parseLine)
+  parsedLine <- getParsedChunk (rawConnection state) (AP.parse parseReply)
   newReqs <- liftIO . atomically $ getOutstandingReqs (responseRequests state)
   let outstandingReqs = knownReqs ++ newReqs
 

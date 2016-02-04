@@ -102,6 +102,7 @@ data UntaggedResult = Flags [Flag]
                     | ListR [NameAttribute] T.Text T.Text
                     | StatusR T.Text [UntaggedResult]
                     | Search [Int]
+                    | Fetch (Maybe Int) T.Text BSC.ByteString
                     deriving (Show, Eq, Ord)
 
 data CommandResult = Tagged TaggedResult | Untagged UntaggedResult

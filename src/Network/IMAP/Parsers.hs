@@ -10,11 +10,15 @@ import qualified Data.Text.Read as TR
 import Data.Text.Encoding (decodeUtf8)
 import qualified Data.ByteString.Char8 as BSC
 import qualified Data.ByteString as BS
-import Data.Either.Combinators (mapBoth, mapRight)
+import Data.Either.Combinators (mapBoth, mapRight, isRight,
+  fromRight', fromLeft', rightToMaybe)
 import qualified Debug.Trace as DT
 
 import Control.Applicative
 import Control.Monad (mzero)
+
+parseReply :: Parser (Either ErrorMessage CommandResult)
+parseReply = parseFetch <|> parseLine
 
 parseLine :: Parser (Either ErrorMessage CommandResult)
 parseLine = do
@@ -108,6 +112,34 @@ parseNumber constructor prefix postfix = do
     else return BSC.empty
 
   return $ toInt count >>= return . constructor
+
+parseFetch :: Parser (Either ErrorMessage CommandResult)
+parseFetch = do
+  string "* "
+  msgId <- (AP.takeWhile1 isDigit >>= return . toInt)
+  let unpackedId = rightToMaybe msgId
+  string " FETCH"
+
+  specifier <- AP.takeWhile1 (\c -> c /= _cr && c /= _braceleft)
+  let parsedSpec = T.dropAround (\c -> c ==')' || c == '(') . T.strip . decodeUtf8 $ specifier
+
+  nextChar <- (peekWord8' >>= return . BS.singleton)
+  case nextChar of
+    "\r" -> string "\r\n" *> (return . Right . Untagged $
+      Fetch unpackedId parsedSpec BSC.empty)
+    "{" -> do
+      word8 _braceleft
+      size <- AP.takeWhile1 isDigit
+      string "}\r\n"
+      let parsedSize = toInt size
+
+      if isRight parsedSize
+        then do
+          msg <- AP.take (fromRight' parsedSize)
+          return . Right . Untagged $ Fetch unpackedId parsedSpec msg
+        else return . Left $ fromLeft' parsedSize
+    _ -> return $ Left "Encountered an unknown character"
+
 
 parseExists :: Parser (Either ErrorMessage UntaggedResult)
 parseExists = parseNumber Exists "" "EXISTS"
