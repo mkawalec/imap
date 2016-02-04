@@ -54,7 +54,8 @@ parseUntagged = do
             (Right <$> parseOk) <|>
             (Right <$> parseBye) <|>
             (Right <$> parseListLikeResp "LIST") <|>
-            (Right <$> parseListLikeResp "LSUB")
+            (Right <$> parseListLikeResp "LSUB") <|>
+            parseStatus
 
   -- Take the rest
   _ <- AP.takeWhile (/= _cr)
@@ -148,6 +149,35 @@ parseNameAttribute = do
           "HasNoChildren" -> HasNoChildren
           _ -> OtherNameAttr $ decodeUtf8 name
 
+parseStatusItem :: Parser (Either ErrorMessage UntaggedResult)
+parseStatusItem = do
+  anyWord8
+  itemName <- (AP.takeWhile1 isAtomChar >>= return . decodeUtf8)
+  string " "
+  value <- (AP.takeWhile1 isDigit >>= return . decodeUtf8)
+
+  let decodingError = T.concat ["Error decoding '", value, "' as integer"]
+  let valAsNumber = mapBoth (const decodingError) fst $ TR.decimal value
+
+  return $ valAsNumber >>= \n -> case itemName of
+    "MESSAGES" -> Right $ Messages n
+    "RECENT" -> Right $ Recent n
+    "UIDNEXT" -> Right $ UIDNext n
+    "UIDVALIDITY" -> Right $ UIDValidity n
+    "UNSEEN" -> Right $ Unseen n
+    _ -> Left $ T.concat ["Unknown status item '", itemName, "'"]
+
+parseStatus :: Parser (Either ErrorMessage UntaggedResult)
+parseStatus = do
+  string "STATUS "
+  inboxName <- (AP.takeWhile1 isAtomChar >>= return . decodeUtf8)
+
+  string " "
+  statuses <- parseStatusItem `manyTill` string ")"
+  let formattedStatuses = mapM id statuses
+
+  return $ formattedStatuses >>= return . StatusR inboxName
+
 parseListLikeResp :: BSC.ByteString -> Parser UntaggedResult
 parseListLikeResp prefix = do
   string prefix
@@ -168,9 +198,6 @@ parseCapabilityList = do
   caps <- (parseCapabilityWithValue <|> parseNamedCapability) `sepBy` word8 _space
   return . (mapRight Capabilities) $ (mapM id) caps
 
-isAtomChar :: Word8 -> Bool
-isAtomChar c = isLetter c || isNumber c || c == _hyphen
-
 parseCapabilityWithValue :: Parser (Either ErrorMessage Capability)
 parseCapabilityWithValue = do
   name <- (AP.takeWhile1 isAtomChar >>= return . decodeUtf8)
@@ -178,7 +205,7 @@ parseCapabilityWithValue = do
   value <- AP.takeWhile1 isAtomChar
 
   let decodedValue = decodeUtf8 value
-  let decodingError = T.concat ["Error deconding '", decodedValue, "' as integer"]
+  let decodingError = T.concat ["Error decoding '", decodedValue, "' as integer"]
   let valAsNumber = mapBoth (const decodingError) fst $ TR.decimal decodedValue
   case T.toLower name of
     "compress" -> return . Right . CCompress $ decodedValue
@@ -211,6 +238,9 @@ parseNamedCapability = do
     _ -> if T.head decodedName == 'X'
           then CExperimental decodedName
           else COther decodedName Nothing
+
+isAtomChar :: Word8 -> Bool
+isAtomChar c = isLetter c || isNumber c || c == _hyphen || c == _quotedbl
 
 toInt :: BSC.ByteString -> Either ErrorMessage Int
 toInt bs = if null parsed

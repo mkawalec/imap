@@ -91,6 +91,7 @@ data UntaggedResult = Flags [Flag]
                     | Bye
                     | HighestModSeq Int
                     | Recent Int
+                    | Messages Int
                     | Unseen Int
                     | PermanentFlags [Flag]
                     | UIDNext Int
@@ -98,6 +99,7 @@ data UntaggedResult = Flags [Flag]
                     | OKResult T.Text
                     | Capabilities [Capability]
                     | ListR [NameAttribute] T.Text T.Text
+                    | StatusR T.Text [UntaggedResult]
                     deriving (Show, Eq, Ord)
 
 data CommandResult = Tagged TaggedResult | Untagged UntaggedResult
