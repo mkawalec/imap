@@ -53,7 +53,8 @@ parseUntagged = do
             parseCapabilityList <|>
             (Right <$> parseOk) <|>
             (Right <$> parseBye) <|>
-            (Right <$> parseListResp)
+            (Right <$> parseListLikeResp "LIST") <|>
+            (Right <$> parseListLikeResp "LSUB")
 
   -- Take the rest
   _ <- AP.takeWhile (/= _cr)
@@ -147,9 +148,10 @@ parseNameAttribute = do
           "HasNoChildren" -> HasNoChildren
           _ -> OtherNameAttr $ decodeUtf8 name
 
-parseListResp :: Parser UntaggedResult
-parseListResp = do
-  string "LIST ("
+parseListLikeResp :: BSC.ByteString -> Parser UntaggedResult
+parseListLikeResp prefix = do
+  string prefix
+  string " ("
   nameAttributes <- parseNameAttribute `sepBy` word8 _space
 
   string ") \""

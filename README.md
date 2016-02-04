@@ -16,7 +16,7 @@
     - [x] SUBSCRIBE
     - [x] UNSUBSCRIBE
     - [x] LIST
-    - [ ] LSUB
+    - [x] LSUB
     - [ ] STATUS
     - [ ] APPEND
     - [ ] CHECK

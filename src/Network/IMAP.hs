@@ -13,6 +13,7 @@ module Network.IMAP (
   subscribe,
   unsubscribe,
   list,
+  lsub,
   simpleFormat
 ) where
 
@@ -138,6 +139,11 @@ list :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
   T.Text -> m CommandResult
 list conn inboxName = sendCommand conn wholeCommand
   where wholeCommand = encodeUtf8 $ T.intercalate " " ["LIST", "\"\"", inboxName]
+
+lsub :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
+  T.Text -> m CommandResult
+lsub conn inboxName = sendCommand conn wholeCommand
+  where wholeCommand = encodeUtf8 $ T.intercalate " " ["LSUB", "\"\"", inboxName]
 
 simpleFormat :: (MonadIO o, Universe o) =>
                 ListT o CommandResult -> o SimpleResult
