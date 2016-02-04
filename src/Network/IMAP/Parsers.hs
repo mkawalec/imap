@@ -56,7 +56,8 @@ parseUntagged = do
             (Right <$> parseListLikeResp "LIST") <|>
             (Right <$> parseListLikeResp "LSUB") <|>
             parseStatus <|>
-            parseExpunge
+            parseExpunge <|>
+            parseSearchResult
 
   -- Take the rest
   _ <- AP.takeWhile (/= _cr)
@@ -246,6 +247,13 @@ parseExpunge = do
   string " EXPUNGE"
 
   return $ toInt msgId >>= return . Expunge
+
+parseSearchResult :: Parser (Either ErrorMessage UntaggedResult)
+parseSearchResult = do
+  string "SEARCH "
+  msgIds <- (AP.takeWhile1 isDigit) `sepBy` word8 _space
+  let parsedIds = mapM id $ map toInt msgIds
+  return $ parsedIds >>= return . Search
 
 isAtomChar :: Word8 -> Bool
 isAtomChar c = isLetter c || isNumber c || c == _hyphen || c == _quotedbl

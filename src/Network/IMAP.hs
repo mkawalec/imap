@@ -18,7 +18,8 @@ module Network.IMAP (
   Network.IMAP.check,
   close,
   expunge,
-  simpleFormat
+  simpleFormat,
+  search
 ) where
 
 import Network.Connection
@@ -162,6 +163,10 @@ close conn = sendCommand conn "CLOSE"
 
 expunge :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> m CommandResult
 expunge conn = sendCommand conn "EXPUNGE"
+
+search :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
+  T.Text -> m CommandResult
+search = oneParamCommand "SEARCH"
 
 simpleFormat :: (MonadIO o, Universe o) =>
                 ListT o CommandResult -> o SimpleResult

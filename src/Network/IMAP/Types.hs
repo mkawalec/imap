@@ -101,6 +101,7 @@ data UntaggedResult = Flags [Flag]
                     | Capabilities [Capability]
                     | ListR [NameAttribute] T.Text T.Text
                     | StatusR T.Text [UntaggedResult]
+                    | Search [Int]
                     deriving (Show, Eq, Ord)
 
 data CommandResult = Tagged TaggedResult | Untagged UntaggedResult
