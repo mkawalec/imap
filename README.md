@@ -7,7 +7,7 @@
 - [x] Output with ListT (support streaming)
 - [x] A testing framework
 - [ ] Support moar commands
-  - [ ] All the little commands
+  - [x] All the little commands
     - [x] SELECT
     - [x] EXAMINE
     - [x] CREATE
@@ -21,7 +21,7 @@
     - [x] CHECK
     - [x] CLOSE
     - [x] EXPUNGE
-  - [ ] Search
+  - [x] Search
   - [ ] Fetch
   - [ ] Rest
     - [ ] STARTTLS
