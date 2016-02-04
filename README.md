@@ -22,13 +22,14 @@
     - [x] CLOSE
     - [x] EXPUNGE
   - [x] Search
-  - [ ] Fetch
+  - [x] Fetch
   - [ ] Rest
     - [ ] STARTTLS
     - [ ] AUTHENTICATE
     - [ ] BYE at any time
     - [ ] APPEND
 - [x] Ability to disconnect (support bye)
+- [ ] Simplify output format of commands that have a single untagged reply required (search)
 - [ ] Connection timeout
 - [ ] Enable configuration when connecting
 - [ ] Keep the connection alive

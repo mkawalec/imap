@@ -19,7 +19,10 @@ module Network.IMAP (
   close,
   expunge,
   simpleFormat,
-  search
+  search,
+  uidSearch,
+  fetch,
+  uidFetch
 ) where
 
 import Network.Connection
@@ -167,6 +170,18 @@ expunge conn = sendCommand conn "EXPUNGE"
 search :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
   T.Text -> m CommandResult
 search = oneParamCommand "SEARCH"
+
+uidSearch :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
+  T.Text -> m CommandResult
+uidSearch = oneParamCommand "UID SEARCH"
+
+fetch :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
+  T.Text -> m CommandResult
+fetch = oneParamCommand "FETCH"
+
+uidFetch :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
+  T.Text -> m CommandResult
+uidFetch = oneParamCommand "UID FETCH"
 
 simpleFormat :: (MonadIO o, Universe o) =>
                 ListT o CommandResult -> o SimpleResult
