@@ -28,9 +28,13 @@
     - [ ] AUTHENTICATE
     - [ ] BYE at any time
     - [ ] APPEND
+    - [ ] STORE
+    - [ ] COPY
 - [x] Ability to disconnect (support bye)
 - [ ] Simplify output format of commands that have a single untagged reply required (search)
 - [ ] Connection timeout
 - [ ] Enable configuration when connecting
 - [ ] Keep the connection alive
 - [ ] React to exceptions
+- [ ] Comments
+- [ ] Tests
