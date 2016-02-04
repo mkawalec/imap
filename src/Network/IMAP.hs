@@ -15,6 +15,8 @@ module Network.IMAP (
   list,
   lsub,
   status,
+  Network.IMAP.check,
+  close,
   simpleFormat
 ) where
 
@@ -150,6 +152,12 @@ status :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
   T.Text -> m CommandResult
 status conn inboxName = sendCommand conn $ encodeUtf8 command
   where command = T.intercalate " " ["STATUS", inboxName, "(MESSAGES", "RECENT", "UIDNEXT", "UIDVALIDITY", "UNSEEN)"]
+
+check :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> m CommandResult
+check conn = sendCommand conn "CHECK"
+
+close :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> m CommandResult
+close conn = sendCommand conn "CLOSE"
 
 simpleFormat :: (MonadIO o, Universe o) =>
                 ListT o CommandResult -> o SimpleResult

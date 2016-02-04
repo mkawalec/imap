@@ -18,9 +18,8 @@
     - [x] LIST
     - [x] LSUB
     - [x] STATUS
-    - [ ] APPEND
-    - [ ] CHECK
-    - [ ] CLOSE
+    - [x] CHECK
+    - [x] CLOSE
     - [ ] EXPUNGE
   - [ ] Search
   - [ ] Fetch
@@ -28,6 +27,7 @@
     - [ ] STARTTLS
     - [ ] AUTHENTICATE
     - [ ] BYE at any time
+    - [ ] APPEND
 - [x] Ability to disconnect (support bye)
 - [ ] Connection timeout
 - [ ] Enable configuration when connecting
