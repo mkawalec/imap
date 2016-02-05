@@ -24,7 +24,7 @@
   - [x] Search
   - [x] Fetch
   - [x] Enable configuration when connecting
-  - [ ] Simplify output format of commands that have a single untagged reply required (search)
+  - [x] Simplify output format of commands that have a single untagged reply required (search)
   - [ ] Connection timeout
   - [ ] React to exceptions
   - [ ] Rest
