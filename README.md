@@ -26,11 +26,11 @@
   - [x] Enable configuration when connecting
   - [x] Simplify output format of commands that have a single untagged reply required (search)
   - [x] Connection timeout
-  - [ ] React to exceptions
+  - [x] React to exceptions
   - [ ] Rest
     - [ ] STARTTLS
     - [ ] AUTHENTICATE
-    - [ ] BYE at any time
+    - [x] BYE at any time
     - [ ] APPEND
     - [ ] STORE
     - [ ] COPY
