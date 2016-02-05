@@ -145,12 +145,14 @@ handleExceptions :: (MonadIO m, Universe m, MonadCatch m) => IMAPConnection ->
 handleExceptions conn e = do
   let state = imapState conn
 
-  requests <- liftIO . atomically . readTVar . outstandingReqs $ state
   threadId <- liftIO . atomically $ do
     writeTVar (connectionState conn) Disconnected
     let actualThreadId = readTVar $ serverWatcherThread conn
     writeTVar (serverWatcherThread conn) Nothing
     actualThreadId
+
+  -- TODO: Check if there are no more outstanding reqs in the pipe
+  requests <- liftIO . atomically . readTVar . outstandingReqs $ state
 
   let reply = TaggedResult {
     commandId = "noid",
