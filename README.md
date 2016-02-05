@@ -23,7 +23,7 @@
     - [x] EXPUNGE
   - [x] Search
   - [x] Fetch
-  - [ ] Enable configuration when connecting
+  - [x] Enable configuration when connecting
   - [ ] Simplify output format of commands that have a single untagged reply required (search)
   - [ ] Connection timeout
   - [ ] React to exceptions

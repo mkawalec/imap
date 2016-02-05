@@ -34,6 +34,7 @@ import qualified Data.STM.RollingQueue as RQ
 import Control.Concurrent.STM.TQueue
 import Control.Concurrent.STM.TVar
 import Control.Monad.STM
+import Data.Maybe (isJust, fromJust)
 
 import Control.Concurrent (forkIO)
 
@@ -45,14 +46,14 @@ import Control.Monad (MonadPlus(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import ListT (toList, ListT)
 
-connectServer :: IO IMAPConnection
-connectServer = do
+connectServer :: ConnectionParams -> Maybe TLSSettings -> IO IMAPConnection
+connectServer connParams tlsSettings = do
   context <- initConnectionContext
-  let params = ConnectionParams "imap.gmail.com" 993 Nothing Nothing
-  let tlsSettings = TLSSettingsSimple False False False
-
-  connection <- connectTo context params
-  connectionSetSecure context connection tlsSettings
+  connection <- connectTo context connParams
+  
+  if isJust tlsSettings
+    then connectionSetSecure context connection $ fromJust tlsSettings
+    else return ()
 
   untaggedRespsQueue <- RQ.newIO 20
   responseRequestsQueue <- newTQueueIO

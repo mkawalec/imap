@@ -38,7 +38,8 @@ library
                         transformers == 0.4.2.0,
                         list-t == 0.4.5.1,
                         monadIO == 0.10.1.4,
-                        derive == 2.5.23
+                        derive == 2.5.23,
+                        data-default == 0.5.3
   hs-source-dirs:       src
   default-language:     Haskell2010
   default-extensions:   OverloadedStrings,
@@ -70,6 +71,7 @@ Test-Suite imap-test
                         list-t == 0.4.5.1,
                         monadIO == 0.10.1.4,
                         derive == 2.5.23,
+                        data-default == 0.5.3,
 
                         tasty == 0.11.0.2,
                         HUnit == 1.3.1.1,
