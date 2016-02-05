@@ -29,7 +29,8 @@ data IMAPConnection = IMAPConnection {
 
 data IMAPState = IMAPState {
   rawConnection :: !Connection,
-  responseRequests :: TQueue ResponseRequest
+  responseRequests :: TQueue ResponseRequest,
+  outstandingReqs :: TVar [ResponseRequest]
 }
 
 data ResponseRequest = ResponseRequest {
@@ -99,10 +100,18 @@ data UntaggedResult = Flags [Flag]
                     | UIDValidity Int
                     | OKResult T.Text
                     | Capabilities [Capability]
-                    | ListR [NameAttribute] T.Text T.Text
+                    | ListR {
+                      flags :: [NameAttribute],
+                      hierarchyDelimiter :: T.Text,
+                      inboxName :: T.Text
+                    }
                     | StatusR T.Text [UntaggedResult]
                     | Search [Int]
-                    | Fetch (Maybe Int) T.Text BSC.ByteString
+                    | Fetch {
+                      messageId :: Maybe Int,
+                      messageSpecifier :: T.Text,
+                      message :: BSC.ByteString
+                    }
                     deriving (Show, Eq, Ord)
 
 data CommandResult = Tagged TaggedResult | Untagged UntaggedResult

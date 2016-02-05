@@ -53,7 +53,7 @@ testConnectionGetChunk c proc = do
   st <- S.get
   toRead <- liftIO . atomically . readTVar . bytesToRead $ st
   if (BS.length toRead) == 0
-    then (lift $ threadDelay 10000) >> testConnectionGetChunk c proc
+    then (lift $ threadDelay 1000) >> testConnectionGetChunk c proc
     else do
       let (result, left) = proc toRead
       liftIO . atomically $ writeTVar (bytesToRead st) left
@@ -105,7 +105,7 @@ withWatcher conn action = withWatcher' conn action
 withWatcher' :: IMAPConnection -> ListT (StateT FakeState IO) a -> StateT FakeState IO [a]
 withWatcher' conn action = do
   st <- S.get
-  watcherThreadId <- fork $ requestWatcher conn []
+  watcherThreadId <- fork $ requestWatcher conn
 
   (res, _) <- lift $ S.runStateT (toList action) st
   lift $ killThread watcherThreadId

@@ -22,7 +22,7 @@ readResults :: (MonadPlus m, MonadIO m, Universe m) =>
                TQueue CommandResult ->
                m CommandResult
 readResults resultsQueue = do
-  delay <- liftIO $ newDelay 1000
+  delay <- liftIO . newDelay $ 10 * 1000000
   let d_wait = do
         didComplete <- tryWaitDelay delay
         if didComplete

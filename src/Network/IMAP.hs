@@ -61,10 +61,12 @@ connectServer connParams tlsSettings = do
   responseRequestsQueue <- newTQueueIO
   connState <- newTVarIO UndefinedState
   watcherId <- newTVarIO Nothing
+  requests <- newTVarIO []
 
   let state = IMAPState {
     rawConnection = connection,
-    responseRequests = responseRequestsQueue
+    responseRequests = responseRequestsQueue,
+    outstandingReqs = requests
   }
 
   let conn = IMAPConnection {
@@ -74,8 +76,8 @@ connectServer connParams tlsSettings = do
     imapState = state
   }
 
-  watcherThreadId <- forkIO $ requestWatcher conn []
-  atomically $ writeTVar watcherId $ Just watcherThreadId
+  watcherThreadId <- forkIO $ requestWatcher conn
+  atomically $ writeTVar (serverWatcherThread conn) $ Just watcherThreadId
 
   return conn
 
@@ -148,18 +150,20 @@ unsubscribe = oneParamCommand "UNSUBSCRIBE"
 
 list :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
   T.Text -> m CommandResult
-list conn inboxName = sendCommand conn wholeCommand
-  where wholeCommand = encodeUtf8 $ T.intercalate " " ["LIST", "\"\"", inboxName]
+list conn mailboxName = sendCommand conn wholeCommand
+  where wholeCommand = encodeUtf8 $ T.intercalate " " ["LIST", "\"\"", mailboxName]
 
 lsub :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
   T.Text -> m CommandResult
-lsub conn inboxName = sendCommand conn wholeCommand
-  where wholeCommand = encodeUtf8 $ T.intercalate " " ["LSUB", "\"\"", inboxName]
+lsub conn mailboxName = sendCommand conn wholeCommand
+  where wholeCommand = encodeUtf8 $ T.intercalate " " ["LSUB", "\"\"", mailboxName]
 
 status :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
   T.Text -> m CommandResult
-status conn inboxName = sendCommand conn $ encodeUtf8 command
-  where command = T.intercalate " " ["STATUS", inboxName, "(MESSAGES", "RECENT", "UIDNEXT", "UIDVALIDITY", "UNSEEN)"]
+status conn mailboxName = sendCommand conn $ encodeUtf8 command
+  where command = T.intercalate " " ["STATUS", mailboxName,
+                                     "(MESSAGES", "RECENT", "UIDNEXT",
+                                     "UIDVALIDITY", "UNSEEN)"]
 
 check :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> m CommandResult
 check conn = sendCommand conn "CHECK"
@@ -213,4 +217,4 @@ simpleFormat action = do
     Untagged _ -> return . Left $ "Last result is untagged, something went wrong"
     Tagged t -> case resultState t of
       OK -> return . Right $ map (\(Untagged u) -> u) (init results)
-      _ -> return . Left $ T.concat ["Error '", decodeUtf8 . resultRest $ t, "'"]
+      _ -> return . Left . decodeUtf8 . resultRest $ t
