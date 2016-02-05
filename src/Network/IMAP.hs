@@ -170,13 +170,22 @@ close conn = sendCommand conn "CLOSE"
 expunge :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> m CommandResult
 expunge conn = sendCommand conn "EXPUNGE"
 
-search :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
-  T.Text -> m CommandResult
-search = oneParamCommand "SEARCH"
+generalSearch :: T.Text -> IMAPConnection ->
+  T.Text -> IO (Either ErrorMessage [Int])
+generalSearch commandName conn query = do
+  result <- simpleFormat (oneParamCommand commandName conn query :: ListT IO CommandResult)
 
-uidSearch :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
-  T.Text -> m CommandResult
-uidSearch = oneParamCommand "UID SEARCH"
+  case result of
+    Right u -> case head u of
+      Search res -> return . Right $ res
+      _ -> return . Left $ "Received reply of a wrong type"
+    Left l -> return . Left $ l
+
+search :: IMAPConnection -> T.Text -> IO (Either ErrorMessage [Int])
+search = generalSearch "SEARCH"
+
+uidSearch :: IMAPConnection -> T.Text -> IO (Either ErrorMessage [Int])
+uidSearch = generalSearch "UID SEARCH"
 
 fetch :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
   T.Text -> m CommandResult
@@ -196,8 +205,8 @@ uidFetchG :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
   T.Text -> m CommandResult
 uidFetchG = oneParamCommand "UID FETCH"
 
-simpleFormat :: (MonadIO o, Universe o) =>
-                ListT o CommandResult -> o SimpleResult
+simpleFormat :: (MonadIO m, Universe m) =>
+                ListT m CommandResult -> m SimpleResult
 simpleFormat action = do
   results <- toList action
   case last results of
