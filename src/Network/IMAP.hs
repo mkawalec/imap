@@ -22,7 +22,9 @@ module Network.IMAP (
   search,
   uidSearch,
   fetch,
-  uidFetch
+  uidFetch,
+  fetchG,
+  uidFetchG,
 ) where
 
 import Network.Connection
@@ -50,7 +52,7 @@ connectServer :: ConnectionParams -> Maybe TLSSettings -> IO IMAPConnection
 connectServer connParams tlsSettings = do
   context <- initConnectionContext
   connection <- connectTo context connParams
-  
+
   if isJust tlsSettings
     then connectionSetSecure context connection $ fromJust tlsSettings
     else return ()
@@ -178,11 +180,21 @@ uidSearch = oneParamCommand "UID SEARCH"
 
 fetch :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
   T.Text -> m CommandResult
-fetch = oneParamCommand "FETCH"
+fetch conn query = sendCommand conn $ encodeUtf8 command
+  where command = T.intercalate " " ["FETCH", query, "BODY[]"]
 
 uidFetch :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
   T.Text -> m CommandResult
-uidFetch = oneParamCommand "UID FETCH"
+uidFetch conn query = sendCommand conn $ encodeUtf8 command
+  where command = T.intercalate " " ["UID FETCH", query, "BODY[]"]
+
+fetchG :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
+  T.Text -> m CommandResult
+fetchG = oneParamCommand "FETCH"
+
+uidFetchG :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
+  T.Text -> m CommandResult
+uidFetchG = oneParamCommand "UID FETCH"
 
 simpleFormat :: (MonadIO o, Universe o) =>
                 ListT o CommandResult -> o SimpleResult
