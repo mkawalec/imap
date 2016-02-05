@@ -28,13 +28,15 @@ forUntagged results resultTypeTest action = do
   where onlyUntagged = map (\(Untagged u) -> u) $ filter isUntagged results
         isResult = L.find resultTypeTest onlyUntagged
 
-testLoginFailure conn = do
+testLoginFailure = do
+  conn <- getConn
   (res, _) <- runFakeIOWithReply conn "" "NO [ALERT] Invalid credentials (Failure)" $ do
     login conn "a" "b"
 
   lastIsTagged res $ \r -> resultState r @?= NO
 
-testLoginSuccess conn = do
+testLoginSuccess = do
+  conn <- getConn
   (res, _) <- runFakeIOWithReply conn
     "* CAPABILITY IMAP4rev1 UNSELECT IDLE NAMESPACE QUOTA ID XLIST CHILDREN \
     \X-GM-EXT-1 UIDPLUS COMPRESS=DEFLATE ENABLE MOVE CONDSTORE ESEARCH \
@@ -43,7 +45,8 @@ testLoginSuccess conn = do
 
   lastIsTagged res $ \r -> resultState r @?= OK
 
-testFlags conn = do
+testFlags = do
+  conn <- getConn
   (res, _) <- runFakeIOWithReply conn "* FLAGS (\\Answered \\Flagged \\Draft\
     \ \\Deleted \\Seen $NotPhishing $Phishing NonJunk)" "OK command successfull" $
       sendCommand conn "select inbox"
@@ -59,25 +62,30 @@ testFlags conn = do
     (isJust $ L.find (=="NonJunk") otherFlags) @?= True
     (isJust $ L.find (=="$Phishing") otherFlags) @?= True
 
-testExists conn = do
+testExists = do
+  conn <- getConn
   (res, _) <- runFakeIOWithReply conn "* 67 EXISTS" "OK k" $ sendCommand conn "test"
   forUntagged res isExists $ \(Exists count) -> count @?= 67
 
-testRecent conn = do
+testRecent = do
+  conn <- getConn
   (res, _) <- runFakeIOWithReply conn "* 15 RECENT" "OK k" $ sendCommand conn "test"
   forUntagged res isRecent $ \(Recent count) -> count @?= 15
 
-testUnseen conn = do
+testUnseen = do
+  conn <- getConn
   (res, _) <- runFakeIOWithReply conn "* OK [UNSEEN 15]" "OK k" $ sendCommand conn "test"
   forUntagged res isUnseen $ \(Unseen count) -> count @?= 15
 
-testUIDNext conn = do
+testUIDNext = do
+  conn <- getConn
   (res, _) <- runFakeIOWithReply conn "* OK [UIDNEXT 923] Predicted next UID." "OK k" $
     sendCommand conn "test"
 
   forUntagged res isUIDNext $ \(UIDNext nextUID) -> nextUID @?= 923
 
-testPermFlags conn = do
+testPermFlags = do
+  conn <- getConn
   (res, _) <- runFakeIOWithReply conn "* OK [PERMANENTFLAGS (\\Answered \\Flagged\
     \ \\Draft \\Deleted \\Seen $NotPhishing $Phishing NonJunk \\*)]\
     \ Flags permitted." "OK k" $ sendCommand conn "test"
@@ -91,14 +99,14 @@ testPermFlags conn = do
     (isJust $ L.find (=="$Phishing") otherFlags) @?= True
 
 
-tests :: IMAPConnection -> TestTree
-tests conn = testGroup "Network.IMAP" [
-  testCase "Login Failure" (testLoginFailure conn),
-  testCase "Login Success" (testLoginSuccess conn),
-  testCase "Check flags reply" (testFlags conn),
-  testCase "Check EXISTS" (testExists conn),
-  testCase "Check RECENT" (testRecent conn),
-  testCase "Check UNSEEN" (testUnseen conn),
-  testCase "Check UIDNEXT" (testUIDNext conn),
-  testCase "Check PERMANENTFLAGS" (testPermFlags conn)
+tests :: TestTree
+tests = testGroup "Network.IMAP" [
+  testCase "Login Failure" testLoginFailure,
+  testCase "Login Success" testLoginSuccess,
+  testCase "Check flags reply" testFlags,
+  testCase "Check EXISTS" testExists,
+  testCase "Check RECENT" testRecent,
+  testCase "Check UNSEEN" testUnseen,
+  testCase "Check UIDNEXT" testUIDNext,
+  testCase "Check PERMANENTFLAGS" testPermFlags
   ]
