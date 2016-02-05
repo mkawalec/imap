@@ -25,7 +25,7 @@
   - [x] Fetch
   - [x] Enable configuration when connecting
   - [x] Simplify output format of commands that have a single untagged reply required (search)
-  - [ ] Connection timeout
+  - [x] Connection timeout
   - [ ] React to exceptions
   - [ ] Rest
     - [ ] STARTTLS
