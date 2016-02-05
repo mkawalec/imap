@@ -47,6 +47,7 @@ import Network.IMAP.Utils
 import Control.Monad (MonadPlus(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import ListT (toList, ListT)
+import qualified Data.List as L
 
 connectServer :: ConnectionParams -> Maybe TLSSettings -> IO IMAPConnection
 connectServer connParams tlsSettings = do
@@ -209,12 +210,23 @@ uidFetchG :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
   T.Text -> m CommandResult
 uidFetchG = oneParamCommand "UID FETCH"
 
+-- |Return the untagged replies or an error message if the tagged reply
+--  is of type NO or BAD. Also return all untagged replies received if
+--  replies list contains a BYE response
+--  (when the server decided to cleanly disconnect)
 simpleFormat :: (MonadIO m, Universe m) =>
                 ListT m CommandResult -> m SimpleResult
 simpleFormat action = do
   results <- toList action
-  case last results of
-    Untagged _ -> return . Left $ "Last result is untagged, something went wrong"
-    Tagged t -> case resultState t of
-      OK -> return . Right $ map (\(Untagged u) -> u) (init results)
-      _ -> return . Left . decodeUtf8 . resultRest $ t
+  let
+    hasBye = L.find (\i -> case i of
+      Untagged u -> isBye u
+      Tagged _ -> False) results
+
+  if isJust hasBye
+    then return . Right $ map (\(Untagged u) -> u) $ filter isUntagged results
+    else case last results of
+          Untagged _ -> return . Left $ "Last result is untagged, something went wrong"
+          Tagged t -> case resultState t of
+            OK -> return . Right $ map (\(Untagged u) -> u) (init results)
+            _ -> return . Left . decodeUtf8 . resultRest $ t
