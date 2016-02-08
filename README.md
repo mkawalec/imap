@@ -32,7 +32,7 @@
     - [x] AUTHENTICATE
     - [x] BYE at any time
     - [x] APPEND
-    - [ ] STORE
+    - [x] STORE
     - [ ] COPY
     - [ ] Handle connection timeout
 - [x] Ability to disconnect (support bye)
