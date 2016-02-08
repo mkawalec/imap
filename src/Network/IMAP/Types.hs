@@ -8,7 +8,8 @@ import Data.DeriveTH
 
 import Control.Concurrent (ThreadId)
 import Control.Concurrent.STM.TQueue (TQueue)
-import Network.Connection (Connection, connectionPut, connectionGetChunk')
+import Network.Connection (Connection, ConnectionContext,
+  connectionPut, connectionGetChunk')
 import ListT (ListT)
 import Control.Monad.IO.Class (liftIO)
 
@@ -29,6 +30,7 @@ data IMAPConnection = IMAPConnection {
 
 data IMAPState = IMAPState {
   rawConnection :: !Connection,
+  connectionContext :: ConnectionContext,
   responseRequests :: TQueue ResponseRequest,
   outstandingReqs :: TVar [ResponseRequest]
 }

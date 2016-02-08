@@ -28,7 +28,7 @@
   - [x] Connection timeout
   - [x] React to exceptions
   - [ ] Rest
-    - [ ] STARTTLS
+    - [x] STARTTLS
     - [ ] AUTHENTICATE
     - [x] BYE at any time
     - [ ] APPEND

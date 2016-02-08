@@ -24,6 +24,7 @@ module Network.IMAP (
   fetch,
   uidFetch,
   fetchG,
+  startTLS,
   uidFetchG,
 ) where
 
@@ -38,7 +39,7 @@ import Control.Concurrent.STM.TVar
 import Control.Monad.STM
 import Data.Maybe (isJust, fromJust)
 
-import Control.Concurrent (forkIO)
+import Control.Concurrent (forkIO, killThread)
 
 import Network.IMAP.Types
 import Network.IMAP.RequestWatcher
@@ -47,16 +48,14 @@ import Network.IMAP.Utils
 import Control.Monad (MonadPlus(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import ListT (toList, ListT)
+import Data.Either.Combinators (isRight)
 import qualified Data.List as L
+import qualified Debug.Trace as DT
 
-connectServer :: ConnectionParams -> Maybe TLSSettings -> IO IMAPConnection
-connectServer connParams tlsSettings = do
+connectServer :: ConnectionParams -> IO IMAPConnection
+connectServer connParams = do
   context <- initConnectionContext
   connection <- connectTo context connParams
-
-  if isJust tlsSettings
-    then connectionSetSecure context connection $ fromJust tlsSettings
-    else return ()
 
   untaggedRespsQueue <- RQ.newIO 20
   responseRequestsQueue <- newTQueueIO
@@ -66,6 +65,7 @@ connectServer connParams tlsSettings = do
 
   let state = IMAPState {
     rawConnection = connection,
+    connectionContext = context,
     responseRequests = responseRequestsQueue,
     outstandingReqs = requests
   }
@@ -191,6 +191,29 @@ search = generalSearch "SEARCH"
 
 uidSearch :: IMAPConnection -> T.Text -> IO (Either ErrorMessage [Int])
 uidSearch = generalSearch "UID SEARCH"
+
+startTLS :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> m CommandResult
+startTLS conn = do
+  res <- sendCommand conn "STARTTLS"
+
+  case res of
+    Tagged (TaggedResult _ resState _) -> if resState == OK
+      then do
+        threadId <- liftIO . atomically . readTVar $ serverWatcherThread conn
+        liftIO . killThread . fromJust $ threadId
+        let tls = TLSSettingsSimple False False False
+        let state = imapState conn
+        liftIO $ connectionSetSecure (connectionContext state) (rawConnection state) tls
+
+        watcherThreadId <- liftIO . forkIO $ requestWatcher conn
+        liftIO . atomically $ do
+          writeTVar (serverWatcherThread conn) $ Just watcherThreadId
+          writeTVar (connectionState conn) $ Connected
+      else return ()
+    _ -> return ()
+
+  return res
+
 
 fetch :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
   T.Text -> m CommandResult

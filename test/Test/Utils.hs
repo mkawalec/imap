@@ -81,10 +81,10 @@ runFakeIOWithReply conn prefix reply action = do
 
 getConn :: IO IMAPConnection
 getConn = do
-  let params = ConnectionParams "imap.gmail.com" 993 Nothing Nothing
   let tlsSettings = Just $ TLSSettingsSimple False False False
+  let params = ConnectionParams "imap.gmail.com" 993 tlsSettings Nothing
 
-  conn <- connectServer params tlsSettings
+  conn <- connectServer params 
   threadId <- atomically . readTVar $ serverWatcherThread conn
   killThread . fromJust $ threadId
 

@@ -122,7 +122,7 @@ type ParseResult = Either ErrorMessage CommandResult
 parseChunk :: (BSC.ByteString -> Result ParseResult) ->
               BSC.ByteString ->
               ((Maybe ParseResult, Maybe (BSC.ByteString -> Result ParseResult)), BSC.ByteString)
-parseChunk parser chunk =
+parseChunk parser chunk = DT.traceShow chunk $
     case parser chunk of
       Fail left _ msg -> ((Just . Left . T.pack $ msg, Nothing), omitOneLine left)
       Partial continuation -> ((Nothing, Just continuation), BS.empty)
