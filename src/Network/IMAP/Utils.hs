@@ -4,6 +4,7 @@ import Network.IMAP.Types
 import qualified Data.ByteString.Char8 as BSC
 import System.Random
 import qualified Data.Text as T
+import Data.Text.Encoding (encodeUtf8)
 
 import Control.Monad.STM
 import Control.Concurrent.STM.TQueue
@@ -57,3 +58,16 @@ ifNotDisconnected conn action = do
         resultRest = "Cannot post a command when watcher is disconnected"
       }
     else action
+
+flagsToText :: [Flag] -> BSC.ByteString
+flagsToText flags = BSC.concat ["(", encodedFlags, ")"]
+  where encodedFlags = BSC.intercalate " " textFlags
+        textFlags = flip map flags (\case
+          FSeen -> "\\Seen"
+          FAnswered -> "\\Answered"
+          FFlagged -> "\\Flagged"
+          FDeleted -> "\\Deleted"
+          FDraft -> "\\Draft"
+          FRecent -> "\\Recent"
+          FAny -> "*"
+          FOther t -> encodeUtf8 t)

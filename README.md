@@ -31,10 +31,11 @@
     - [x] STARTTLS
     - [x] AUTHENTICATE
     - [x] BYE at any time
-    - [ ] APPEND
+    - [x] APPEND
     - [ ] STORE
     - [ ] COPY
 - [x] Ability to disconnect (support bye)
+- [ ] Order the functions in IMAP.hs
 - [ ] HLint that shit
 - [ ] Comments
 - [ ] Tests

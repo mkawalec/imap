@@ -51,7 +51,8 @@ library
                         TypeSynonymInstances,
                         DeriveFunctor,
                         FlexibleInstances,
-                        TemplateHaskell
+                        TemplateHaskell,
+                        LambdaCase
   ghc-options:          -Wall -fno-warn-unused-do-bind
 
 Test-Suite imap-test
@@ -91,4 +92,5 @@ Test-Suite imap-test
                         TypeSynonymInstances,
                         DeriveFunctor,
                         FlexibleInstances,
-                        TemplateHaskell
+                        TemplateHaskell,
+                        LambdaCase

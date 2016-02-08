@@ -1,6 +1,7 @@
 module Network.IMAP (
   connectServer,
   sendCommand,
+  authenticate,
   login,
   logout,
   capability,
@@ -26,6 +27,7 @@ module Network.IMAP (
   fetchG,
   startTLS,
   uidFetchG,
+  append
 ) where
 
 import Network.Connection
@@ -256,6 +258,24 @@ fetchG = oneParamCommand "FETCH"
 uidFetchG :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
   T.Text -> m CommandResult
 uidFetchG = oneParamCommand "UID FETCH"
+
+append :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
+  T.Text -> BSC.ByteString -> Maybe [Flag] -> Maybe T.Text -> m CommandResult
+append conn inboxName message flags dateTime = do
+  let encodedFlags = if isJust flags
+                      then BSC.concat [" ", flagsToText $ fromJust flags]
+                      else BSC.empty
+  let encodedDate = if isJust dateTime
+                      then BSC.concat [" \"", encodeUtf8 . fromJust $ dateTime, "\""]
+                      else BSC.empty
+
+  let command = BSC.concat ["APPEND ", encodeUtf8 inboxName, encodedFlags,
+                            encodedDate, " {", BSC.pack . show . BSC.length $ message,
+                            "}\r\n", message]
+
+  DT.traceShow command $ return ()
+  sendCommand conn command
+
 
 -- |Return the untagged replies or an error message if the tagged reply
 --  is of type NO or BAD. Also return all untagged replies received if
