@@ -10,12 +10,13 @@ import qualified Data.Text.Read as TR
 import Data.Text.Encoding (decodeUtf8)
 import qualified Data.ByteString.Char8 as BSC
 import qualified Data.ByteString as BS
+import Data.Maybe (fromJust, isJust)
 import Data.Either.Combinators (mapBoth, mapRight, isRight,
   fromRight', fromLeft', rightToMaybe)
 import qualified Debug.Trace as DT
 
 import Control.Applicative
-import Control.Monad (mzero)
+import Control.Monad (mzero, liftM)
 
 parseReply :: Parser (Either ErrorMessage CommandResult)
 parseReply = parseFetch <|> parseLine
@@ -110,6 +111,7 @@ parseNumber constructor prefix postfix = do
   if not . BSC.null $ postfix
     then word8 _space *> string postfix
     else return BSC.empty
+  DT.traceShow count $ return ()
 
   return $ toInt count >>= return . constructor
 
@@ -140,6 +142,99 @@ parseFetch = do
         else return . Left $ fromLeft' parsedSize
     _ -> return $ Left "Encountered an unknown character"
 
+parseSpecifier :: Parser [Either ErrorMessage UntaggedResult]
+parseSpecifier = do
+  nextChar <- AP.peekWord8
+  if (not . isJust $ nextChar) || (fromJust nextChar == _cr)
+    then return []
+    else do
+      name <- AP.takeWhile1 isAtomChar
+      word8 _space
+
+      DT.traceShow name $ return ()
+      nextRes <- case name of
+        "ENVELOPE" -> Right <$> parseEnvelope
+        "FLAGS" -> (Right . Flags) <$> parseFlagList
+        "INTERNALDATE" -> liftM (Right . InternalDate) parseQuotedText
+        "RFC822.SIZE" -> parseNumber Size "" ""
+      DT.traceShow nextRes $ return ()
+      (nextRes:) <$> (AP.anyWord8 *> parseSpecifier)
+
+parseEnvelope :: Parser UntaggedResult
+parseEnvelope = do
+  string "("
+  date <- nilOrValue parseQuotedText
+  word8 _space
+
+  subject <- nilOrValue parseQuotedText
+  word8 _space
+
+  from <- nilOrValue parseEmailList
+  word8 _space
+
+  sender <- nilOrValue parseEmailList
+  word8 _space
+
+  replyTo <- nilOrValue parseEmailList
+  word8 _space
+
+  to <- nilOrValue parseEmailList
+  word8 _space
+
+  cc <- nilOrValue parseEmailList
+  word8 _space
+
+  bcc <- nilOrValue parseEmailList
+  word8 _space
+
+  inReplyTo <- nilOrValue parseQuotedText
+  word8 _space
+
+  messageId <- nilOrValue parseQuotedText
+  string ")"
+
+  return Envelope {
+    eDate = date,
+    eSubject = subject,
+    eFrom = from,
+    eSender = sender,
+    eReplyTo = replyTo,
+    eTo = to,
+    eCC = cc,
+    eBCC = bcc,
+    eInReplyTo = inReplyTo,
+    eMessageId = messageId
+  }
+
+
+parseEmailList :: Parser [EmailAddress]
+parseEmailList = string "(" *> parseEmail `sepBy` word8 _space <* string ")"
+
+parseEmail :: Parser EmailAddress
+parseEmail = do
+  string "(\""
+  label <- AP.takeWhile1 (/= _quotedbl)
+  string "\" NIL \""
+
+  emailUsername <- AP.takeWhile1 (/= _quotedbl)
+  string "\" \""
+  emailDomain <- AP.takeWhile1 (/= _quotedbl)
+  string "\")"
+  let fullAddr = decodeUtf8 $ BSC.concat [emailUsername, "@", emailDomain]
+
+  return $ EmailAddress (decodeUtf8 label) fullAddr
+
+
+nilOrValue :: Parser a -> Parser (Maybe a)
+nilOrValue parser = rightToMaybe <$> AP.eitherP (string "NIL") parser
+
+parseQuotedText :: Parser T.Text
+parseQuotedText = do
+  word8 _quotedbl
+  date <- AP.takeWhile1 (/= _quotedbl)
+  word8 _quotedbl
+
+  return . decodeUtf8 $ date
 
 parseExists :: Parser (Either ErrorMessage UntaggedResult)
 parseExists = parseNumber Exists "" "EXISTS"
@@ -288,7 +383,7 @@ parseSearchResult = do
   return $ parsedIds >>= return . Search
 
 isAtomChar :: Word8 -> Bool
-isAtomChar c = isLetter c || isNumber c || c == _hyphen || c == _quotedbl
+isAtomChar c = isLetter c || isNumber c || c == _hyphen || c == _quotedbl || c == _period
 
 toInt :: BSC.ByteString -> Either ErrorMessage Int
 toInt bs = if null parsed

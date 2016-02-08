@@ -42,6 +42,11 @@ data ResponseRequest = ResponseRequest {
 
 data ResultState = OK | NO | BAD deriving (Show, Eq)
 
+data EmailAddress = EmailAddress {
+  emailLabel :: T.Text,
+  emailAddress :: T.Text
+} deriving (Show, Eq)
+
 data Flag = FSeen
           | FAnswered
           | FFlagged
@@ -114,7 +119,22 @@ data UntaggedResult = Flags [Flag]
                       messageSpecifier :: T.Text,
                       message :: BSC.ByteString
                     }
-                    deriving (Show, Eq, Ord)
+                    | Envelope {
+                      eDate :: Maybe T.Text,
+                      eSubject :: Maybe T.Text,
+                      eFrom :: Maybe [EmailAddress],
+                      eSender :: Maybe [EmailAddress],
+                      eReplyTo :: Maybe [EmailAddress],
+                      eTo :: Maybe [EmailAddress],
+                      eCC :: Maybe [EmailAddress],
+                      eBCC :: Maybe [EmailAddress],
+                      eInReplyTo :: Maybe T.Text,
+                      eMessageId :: Maybe T.Text
+                    }
+                    | InternalDate T.Text
+                    | Size Int
+                    | Unknown BSC.ByteString
+                    deriving (Show, Eq)
 
 data CommandResult = Tagged TaggedResult | Untagged UntaggedResult
   deriving (Show, Eq)

@@ -34,10 +34,12 @@
     - [x] APPEND
     - [x] STORE
     - [x] COPY
-    - [ ] Handle connection timeout
     - [ ] More parsing on fetch
 - [x] Ability to disconnect (support bye)
+- [ ] Split parsers in separate files
 - [ ] Order the functions in IMAP.hs
 - [ ] HLint that shit
 - [ ] Comments
+- [ ] Example usage in README
+- [x] Handle connection timeout
 - [ ] Tests
