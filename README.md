@@ -29,12 +29,12 @@
   - [x] React to exceptions
   - [ ] Rest
     - [x] STARTTLS
-    - [ ] AUTHENTICATE
+    - [x] AUTHENTICATE
     - [x] BYE at any time
     - [ ] APPEND
     - [ ] STORE
     - [ ] COPY
 - [x] Ability to disconnect (support bye)
-- [ ] HLint that shit 
+- [ ] HLint that shit
 - [ ] Comments
 - [ ] Tests

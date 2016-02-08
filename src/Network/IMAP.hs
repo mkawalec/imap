@@ -97,7 +97,7 @@ sendCommand conn command = ifNotDisconnected conn $ do
 
   connectionPut' (rawConnection state) commandLine
   readResults responseQ
-  
+
 startTLS :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> m CommandResult
 startTLS conn = do
   res <- sendCommand conn "STARTTLS"
@@ -120,6 +120,29 @@ startTLS conn = do
 
   return res
 
+-- |Authenticate with the server. During the authentication control is given
+--  to the library user and is returned to the library at the end of authentication
+authenticate :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
+  BSC.ByteString -> (IMAPConnection -> m ()) -> m ()
+authenticate conn method authAction = do
+  requestId <- liftIO genRequestId
+  let commandLine = BSC.concat [requestId, " AUTHENTICATE ", method, "\r\n"]
+
+  connectionPut' (rawConnection . imapState $ conn) commandLine
+
+  -- kill the watcher thread
+  threadId <- liftIO . atomically . readTVar $ serverWatcherThread conn
+  liftIO . killThread . fromJust $ threadId
+
+  authAction conn
+
+  -- Bring the watcher back up
+  watcherThreadId <- liftIO . forkIO $ requestWatcher conn
+  liftIO . atomically $ do
+    writeTVar (serverWatcherThread conn) $ Just watcherThreadId
+    writeTVar (connectionState conn) $ Connected
+
+  return ()
 
 login :: (MonadPlus m, MonadIO m, Universe m) =>
          IMAPConnection ->
