@@ -33,8 +33,9 @@
     - [x] BYE at any time
     - [x] APPEND
     - [x] STORE
-    - [ ] COPY
+    - [x] COPY
     - [ ] Handle connection timeout
+    - [ ] More parsing on fetch
 - [x] Ability to disconnect (support bye)
 - [ ] Order the functions in IMAP.hs
 - [ ] HLint that shit

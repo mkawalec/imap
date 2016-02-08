@@ -28,7 +28,8 @@ module Network.IMAP (
   startTLS,
   uidFetchG,
   append,
-  store
+  store,
+  copy
 ) where
 
 import Network.Connection
@@ -262,7 +263,7 @@ uidFetchG = oneParamCommand "UID FETCH"
 
 append :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
   T.Text -> BSC.ByteString -> Maybe [Flag] -> Maybe T.Text -> m CommandResult
-append conn inboxName message flags dateTime = do
+append conn mailboxName message flags dateTime = do
   let encodedFlags = if isJust flags
                       then BSC.concat [" ", flagsToText $ fromJust flags]
                       else BSC.empty
@@ -270,7 +271,7 @@ append conn inboxName message flags dateTime = do
                       then BSC.concat [" \"", encodeUtf8 . fromJust $ dateTime, "\""]
                       else BSC.empty
 
-  let command = BSC.concat ["APPEND ", encodeUtf8 inboxName, encodedFlags,
+  let command = BSC.concat ["APPEND ", encodeUtf8 mailboxName, encodedFlags,
                             encodedDate, " {", BSC.pack . show . BSC.length $ message,
                             "}\r\n", message]
 
@@ -282,7 +283,14 @@ store :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
 store conn sequenceSet dataItem flagList = do
   let command = BSC.intercalate " " ["STORE", encodeUtf8 sequenceSet,
                                      encodeUtf8 dataItem, flagsToText flagList]
-  DT.traceShow command $ sendCommand conn command
+  sendCommand conn command
+
+
+copy :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
+  T.Text -> T.Text -> m CommandResult
+copy conn sequenceSet mailboxName = sendCommand conn command
+  where command = BSC.intercalate " " ["COPY", encodeUtf8 sequenceSet,
+                                       encodeUtf8 mailboxName]
 
 
 -- |Return the untagged replies or an error message if the tagged reply
