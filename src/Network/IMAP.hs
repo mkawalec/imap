@@ -27,7 +27,8 @@ module Network.IMAP (
   fetchG,
   startTLS,
   uidFetchG,
-  append
+  append,
+  store
 ) where
 
 import Network.Connection
@@ -275,6 +276,13 @@ append conn inboxName message flags dateTime = do
 
   DT.traceShow command $ return ()
   sendCommand conn command
+
+store :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
+  T.Text -> T.Text -> [Flag] -> m CommandResult
+store conn sequenceSet dataItem flagList = do
+  let command = BSC.intercalate " " ["STORE", encodeUtf8 sequenceSet,
+                                     encodeUtf8 dataItem, flagsToText flagList]
+  DT.traceShow command $ sendCommand conn command
 
 
 -- |Return the untagged replies or an error message if the tagged reply

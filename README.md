@@ -34,6 +34,7 @@
     - [x] APPEND
     - [ ] STORE
     - [ ] COPY
+    - [ ] Handle connection timeout
 - [x] Ability to disconnect (support bye)
 - [ ] Order the functions in IMAP.hs
 - [ ] HLint that shit
