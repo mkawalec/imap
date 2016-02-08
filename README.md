@@ -6,7 +6,7 @@
 - [x] Way simpler output types
 - [x] Output with ListT (support streaming)
 - [x] A testing framework
-- [ ] Support moar commands
+- [x] Support moar commands
   - [x] All the little commands
     - [x] SELECT
     - [x] EXAMINE
@@ -27,16 +27,17 @@
   - [x] Simplify output format of commands that have a single untagged reply required (search)
   - [x] Connection timeout
   - [x] React to exceptions
-  - [ ] Rest
+  - [x] Rest
     - [x] STARTTLS
     - [x] AUTHENTICATE
     - [x] BYE at any time
     - [x] APPEND
     - [x] STORE
     - [x] COPY
-    - [ ] More parsing on fetch
+    - [x] More parsing on fetch
 - [x] Ability to disconnect (support bye)
 - [ ] Split parsers in separate files
+- [ ] Make command timeout configurable
 - [ ] Order the functions in IMAP.hs
 - [ ] HLint that shit
 - [ ] Comments

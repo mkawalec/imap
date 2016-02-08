@@ -32,28 +32,30 @@ import System.Log.Logger (errorM)
 
 requestWatcher :: (MonadIO m, Universe m, MonadCatch m) => IMAPConnection -> m ()
 requestWatcher conn = flip C.catch (handleExceptions conn) $ do
-  let state = imapState conn
-  parsedLine <- getParsedChunk (rawConnection state) (AP.parse parseReply)
+  parsedLines <- getParsedChunk (rawConnection . imapState $ conn) (AP.parse parseReply)
 
+  if isRight parsedLines
+    then mapM_ (reactToReply conn) $ fromRight' parsedLines
+    else return ()
+
+  requestWatcher conn
+
+reactToReply :: (MonadIO m, Universe m, MonadCatch m) => IMAPConnection -> CommandResult -> m ()
+reactToReply conn parsedReply = do
+  let state = imapState conn
   requests <- liftIO . atomically $ do
     newReqs <- getOutstandingReqs $ responseRequests state
     knownReqs <- readTVar $ outstandingReqs state
     return $ knownReqs ++ newReqs
 
-  pendingReqs <- if isRight parsedLine
-    then do
-      let parsed = fromRight' parsedLine
-
-      updateConnState conn parsed
-      case parsed of
-        Tagged t -> dispatchTagged requests t
-        Untagged u -> dispatchUntagged conn requests u
-    else return requests
+  updateConnState conn parsedReply
+  pendingReqs <- case parsedReply of
+    Tagged t -> dispatchTagged requests t
+    Untagged u -> dispatchUntagged conn requests u
 
   liftIO . atomically $ writeTVar (outstandingReqs state) pendingReqs
 
   shouldIDie conn
-  requestWatcher conn
 
 updateConnState :: (MonadIO m, Universe m) => IMAPConnection -> CommandResult -> m ()
 updateConnState conn command = do
@@ -118,7 +120,7 @@ omitOneLine :: BSC.ByteString -> BSC.ByteString
 omitOneLine bytes = if BSC.length withLF > 0 then BSC.tail withLF else withLF
   where withLF = BSC.dropWhile (/= '\n') bytes
 
-type ParseResult = Either ErrorMessage CommandResult
+type ParseResult = Either ErrorMessage [CommandResult]
 parseChunk :: (BSC.ByteString -> Result ParseResult) ->
               BSC.ByteString ->
               ((Maybe ParseResult, Maybe (BSC.ByteString -> Result ParseResult)), BSC.ByteString)

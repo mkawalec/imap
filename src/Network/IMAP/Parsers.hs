@@ -18,14 +18,14 @@ import qualified Debug.Trace as DT
 import Control.Applicative
 import Control.Monad (mzero, liftM)
 
-parseReply :: Parser (Either ErrorMessage CommandResult)
+parseReply :: Parser (Either ErrorMessage [CommandResult])
 parseReply = parseFetch <|> parseLine
 
-parseLine :: Parser (Either ErrorMessage CommandResult)
+parseLine :: Parser (Either ErrorMessage [CommandResult])
 parseLine = do
   parsed <- parseUntagged <|> parseTagged
   string "\r\n"
-  return parsed
+  return $ parsed >>= \p -> return [p]
 
 parseTagged :: Parser (Either ErrorMessage CommandResult)
 parseTagged = do
@@ -101,8 +101,8 @@ parseFlagList = word8 _parenleft *>
 parseFlags :: Parser (Either ErrorMessage UntaggedResult)
 parseFlags = Right . Flags <$> (string "FLAGS " *> parseFlagList)
 
-parseNumber :: (Int -> UntaggedResult) -> BSC.ByteString ->
-  BSC.ByteString -> Parser (Either ErrorMessage UntaggedResult)
+parseNumber :: (Int -> a) -> BSC.ByteString ->
+  BSC.ByteString -> Parser (Either ErrorMessage a)
 parseNumber constructor prefix postfix = do
   if not . BSC.null $ prefix
     then string prefix <* word8 _space
@@ -111,36 +111,17 @@ parseNumber constructor prefix postfix = do
   if not . BSC.null $ postfix
     then word8 _space *> string postfix
     else return BSC.empty
-  DT.traceShow count $ return ()
 
   return $ toInt count >>= return . constructor
 
-parseFetch :: Parser (Either ErrorMessage CommandResult)
+parseFetch :: Parser (Either ErrorMessage [CommandResult])
 parseFetch = do
   string "* "
   msgId <- (AP.takeWhile1 isDigit >>= return . toInt)
   let unpackedId = rightToMaybe msgId
-  string " FETCH"
-
-  specifier <- AP.takeWhile1 (\c -> c /= _cr && c /= _braceleft)
-  let parsedSpec = T.dropAround (\c -> c ==')' || c == '(') . T.strip . decodeUtf8 $ specifier
-
-  nextChar <- (peekWord8' >>= return . BS.singleton)
-  case nextChar of
-    "\r" -> string "\r\n" *> (return . Right . Untagged $
-      Fetch unpackedId parsedSpec BSC.empty)
-    "{" -> do
-      word8 _braceleft
-      size <- AP.takeWhile1 isDigit
-      string "}\r\n"
-      let parsedSize = toInt size
-
-      if isRight parsedSize
-        then do
-          msg <- AP.take (fromRight' parsedSize)
-          return . Right . Untagged $ Fetch unpackedId parsedSpec msg
-        else return . Left $ fromLeft' parsedSize
-    _ -> return $ Left "Encountered an unknown character"
+  string " FETCH ("
+  parsedFetch <- parseSpecifier
+  return $ (mapM id parsedFetch) >>= return . map Untagged
 
 parseSpecifier :: Parser [Either ErrorMessage UntaggedResult]
 parseSpecifier = do
@@ -148,21 +129,105 @@ parseSpecifier = do
   if (not . isJust $ nextChar) || (fromJust nextChar == _cr)
     then return []
     else do
-      name <- AP.takeWhile1 isAtomChar
-      word8 _space
+      nextRes <- ((Right <$> parseEnvelope) <|>
+                  parseFlags <|>
+                  (Right <$> parseInternalDate) <|>
+                  parseNumber Size "RFC822.SIZE" "" <|>
+                  ((string "BODY[" <|> string "RFC822.HEADER"
+                   <|> string "RFC822.TEXT" <|> string "RFC822") *> parseBody) <|>
+                  parseNumber UID "UID" "" <|>
+                  parseBodyStructures)
 
-      DT.traceShow name $ return ()
-      nextRes <- case name of
-        "ENVELOPE" -> Right <$> parseEnvelope
-        "FLAGS" -> (Right . Flags) <$> parseFlagList
-        "INTERNALDATE" -> liftM (Right . InternalDate) parseQuotedText
-        "RFC822.SIZE" -> parseNumber Size "" ""
-      DT.traceShow nextRes $ return ()
       (nextRes:) <$> (AP.anyWord8 *> parseSpecifier)
+
+parseInternalDate :: Parser UntaggedResult
+parseInternalDate = liftM InternalDate $ string "INTERNALDATE " *> parseQuotedText
+
+parseBody :: Parser (Either ErrorMessage UntaggedResult)
+parseBody = do
+  AP.takeWhile (/= _braceleft)
+  word8 _braceleft
+  size <- AP.takeWhile1 isDigit
+  string "}\r\n"
+
+  let parsedSize = toInt size
+  if isRight parsedSize
+    then do
+      msg <- AP.take (fromRight' parsedSize)
+      return . Right . Body $ msg
+    else return . Left $ fromLeft' parsedSize
+
+parseBodyStructures :: Parser (Either ErrorMessage UntaggedResult)
+parseBodyStructures = do
+  string "BODYSTRUCTURE "
+  AP.takeWhile (== _parenleft)
+  structures <- parseBodyStructure `sepBy` word8 _parenleft
+  AP.takeWhile (== _parenright)
+
+  return $ mapM id structures >>= return . BodyStructures
+
+parseBodyStructure :: Parser (Either ErrorMessage BodyStructure)
+parseBodyStructure = do
+  bodyType' <- nilOrValue parseQuotedText
+  word8 _space
+
+  bodySubtype' <- nilOrValue parseQuotedText
+  word8 _space
+
+  bodyParams' <- nilOrValue parseBodyParams
+  word8 _space
+
+  bodyId' <- nilOrValue parseQuotedText
+  word8 _space
+
+  bodyDescription' <- nilOrValue parseQuotedText
+  word8 _space
+
+  bodyEncoding' <- nilOrValue parseQuotedText
+  word8 _space
+
+  bodySize' <- parseNumber id "" ""
+  eatUntilClosingParen
+
+  return $ bodySize' >>= \size -> return BodyStructure {
+    bodyType = bodyType',
+    bodySubtype = bodySubtype',
+    bodyParams = bodyParams',
+    bodyId = bodyId',
+    bodyDescription = bodyDescription',
+    bodyEncoding = bodyEncoding',
+    bodySize = size
+  }
+
+eatUntilClosingParen :: Parser BSC.ByteString
+eatUntilClosingParen = scan 0 hadClosedAllParens <* word8 _parenright
+
+hadClosedAllParens :: Int -> Word8 -> Maybe Int
+hadClosedAllParens openingParenCount char =
+  if char == _parenright
+    then if openingParenCount == 0
+      then Nothing
+      else Just $ openingParenCount - 1
+  else if char == _parenleft
+    then Just $ openingParenCount + 1
+    else Just openingParenCount
+
+
+parseBodyParams :: Parser [BodyParam]
+parseBodyParams = string "(" *> parseBodyParam `sepBy` word8 _space <* string ")"
+
+parseBodyParam :: Parser BodyParam
+parseBodyParam = do
+  paramName' <- parseQuotedText
+  word8 _space
+  paramValue' <- parseQuotedText
+
+  return $ BodyParam paramName' paramValue'
+
 
 parseEnvelope :: Parser UntaggedResult
 parseEnvelope = do
-  string "("
+  string "ENVELOPE ("
   date <- nilOrValue parseQuotedText
   word8 _space
 

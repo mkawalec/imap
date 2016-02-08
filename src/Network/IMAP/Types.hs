@@ -103,6 +103,7 @@ data UntaggedResult = Flags [Flag]
                     | Messages Int
                     | Unseen Int
                     | PermanentFlags [Flag]
+                    | UID Int
                     | UIDNext Int
                     | UIDValidity Int
                     | OKResult T.Text
@@ -134,7 +135,24 @@ data UntaggedResult = Flags [Flag]
                     | InternalDate T.Text
                     | Size Int
                     | Unknown BSC.ByteString
+                    | Body BSC.ByteString
+                    | BodyStructures [BodyStructure]
                     deriving (Show, Eq)
+
+data BodyStructure = BodyStructure {
+  bodyType :: Maybe T.Text,
+  bodySubtype :: Maybe T.Text,
+  bodyParams :: Maybe [BodyParam],
+  bodyId :: Maybe T.Text,
+  bodyDescription :: Maybe T.Text,
+  bodyEncoding :: Maybe T.Text,
+  bodySize :: Int
+} deriving (Show, Eq)
+
+data BodyParam = BodyParam {
+  paramName :: T.Text,
+  paramValue :: T.Text
+} deriving (Show, Eq)
 
 data CommandResult = Tagged TaggedResult | Untagged UntaggedResult
   deriving (Show, Eq)
