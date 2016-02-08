@@ -97,6 +97,29 @@ sendCommand conn command = ifNotDisconnected conn $ do
 
   connectionPut' (rawConnection state) commandLine
   readResults responseQ
+  
+startTLS :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> m CommandResult
+startTLS conn = do
+  res <- sendCommand conn "STARTTLS"
+
+  case res of
+    Tagged (TaggedResult _ resState _) -> if resState == OK
+      then do
+        threadId <- liftIO . atomically . readTVar $ serverWatcherThread conn
+        liftIO . killThread . fromJust $ threadId
+        let tls = TLSSettingsSimple False False False
+        let state = imapState conn
+        liftIO $ connectionSetSecure (connectionContext state) (rawConnection state) tls
+
+        watcherThreadId <- liftIO . forkIO $ requestWatcher conn
+        liftIO . atomically $ do
+          writeTVar (serverWatcherThread conn) $ Just watcherThreadId
+          writeTVar (connectionState conn) $ Connected
+      else return ()
+    _ -> return ()
+
+  return res
+
 
 login :: (MonadPlus m, MonadIO m, Universe m) =>
          IMAPConnection ->
@@ -191,28 +214,6 @@ search = generalSearch "SEARCH"
 
 uidSearch :: IMAPConnection -> T.Text -> IO (Either ErrorMessage [Int])
 uidSearch = generalSearch "UID SEARCH"
-
-startTLS :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> m CommandResult
-startTLS conn = do
-  res <- sendCommand conn "STARTTLS"
-
-  case res of
-    Tagged (TaggedResult _ resState _) -> if resState == OK
-      then do
-        threadId <- liftIO . atomically . readTVar $ serverWatcherThread conn
-        liftIO . killThread . fromJust $ threadId
-        let tls = TLSSettingsSimple False False False
-        let state = imapState conn
-        liftIO $ connectionSetSecure (connectionContext state) (rawConnection state) tls
-
-        watcherThreadId <- liftIO . forkIO $ requestWatcher conn
-        liftIO . atomically $ do
-          writeTVar (serverWatcherThread conn) $ Just watcherThreadId
-          writeTVar (connectionState conn) $ Connected
-      else return ()
-    _ -> return ()
-
-  return res
 
 
 fetch :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->

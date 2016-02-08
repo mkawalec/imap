@@ -35,5 +35,6 @@
     - [ ] STORE
     - [ ] COPY
 - [x] Ability to disconnect (support bye)
+- [ ] HLint that shit 
 - [ ] Comments
 - [ ] Tests
