@@ -151,8 +151,10 @@ handleExceptions conn e = do
     writeTVar (serverWatcherThread conn) Nothing
     actualThreadId
 
-  -- TODO: Check if there are no more outstanding reqs in the pipe
-  requests <- liftIO . atomically . readTVar . outstandingReqs $ state
+  requests <- liftIO . atomically $ do
+    newReqs <- getOutstandingReqs $ responseRequests state
+    knownReqs <- readTVar $ outstandingReqs state
+    return $ knownReqs ++ newReqs
 
   let reply = TaggedResult {
     commandId = "noid",
