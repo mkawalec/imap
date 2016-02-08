@@ -38,6 +38,7 @@
 - [x] Ability to disconnect (support bye)
 - [ ] Split parsers in separate files
 - [ ] Make command timeout configurable
+- [ ] Search should live in MonadIO
 - [ ] Order the functions in IMAP.hs
 - [ ] HLint that shit
 - [ ] Comments
