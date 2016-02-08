@@ -121,6 +121,7 @@ parseFetch = do
   let unpackedId = rightToMaybe msgId
   string " FETCH ("
   parsedFetch <- parseSpecifier
+  DT.traceShow parsedFetch $ return ()
   return $ (mapM id parsedFetch) >>= return . map Untagged
 
 parseSpecifier :: Parser [Either ErrorMessage UntaggedResult]
@@ -138,6 +139,7 @@ parseSpecifier = do
                   parseNumber UID "UID" "" <|>
                   parseBodyStructures)
 
+      DT.traceShow nextRes $ return ()
       (nextRes:) <$> (AP.anyWord8 *> parseSpecifier)
 
 parseInternalDate :: Parser UntaggedResult
