@@ -1,35 +1,57 @@
+-----------------------------------------------------------------------------
+-- |
+-- Module      :  Network.IMAP
+-- Copyright   :  2016 Michal Kawalec
+-- License     :  BSD-style (see the file LICENSE)
+-- Maintainer  :  Michal Kawalec <michal@monad.cat>
+-- Stability   :  experimental
+-- Portability :  non-portable
+--
+-- Usage:
+--
+-- @
+--    import Network.Connection
+--    import Network.IMAP
+--
+--    let tls = TLSSettingsSimple False False False
+--    let params = ConnectionParams "imap.gmail.com" 993 (Just tls) Nothing
+--    conn <- connectServer params
+--    simpleFormat $ login conn "mylogin" "mypass"
+-- @
+--
+-- For more usage examples, please see the readme
 module Network.IMAP (
   connectServer,
   sendCommand,
-  authenticate,
-  login,
-  logout,
+  startTLS,
   capability,
+  noop,
+  logout,
+  login,
+  authenticate,
   select,
   examine,
   create,
   delete,
   rename,
-  noop,
   subscribe,
   unsubscribe,
   list,
   lsub,
   status,
+  append,
   Network.IMAP.check,
   close,
   expunge,
-  simpleFormat,
   search,
   uidSearch,
   fetch,
   uidFetch,
   fetchG,
-  startTLS,
   uidFetchG,
-  append,
   store,
-  copy
+  copy,
+  simpleFormat
 ) where
 
 import Network.Connection
@@ -55,6 +77,9 @@ import ListT (toList, ListT)
 import qualified Data.List as L
 import qualified Debug.Trace as DT
 
+-- |Connects to the server and gives you a connection object
+--  that needs to be passed to any other command. You should only call it once
+--  for every connection you wish to create
 connectServer :: ConnectionParams -> IO IMAPConnection
 connectServer connParams = do
   context <- initConnectionContext
@@ -86,6 +111,8 @@ connectServer connParams = do
 
   return conn
 
+-- |An escape hatch, gives you the ability to send any command to the server,
+--  even one not implemented by this library
 sendCommand :: (MonadPlus m, MonadIO m, Universe m) =>
                IMAPConnection ->
                BSC.ByteString ->
@@ -102,8 +129,14 @@ sendCommand conn command = ifNotDisconnected conn $ do
   connectionPut' (rawConnection state) commandLine
   readResults responseQ
 
-startTLS :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> m CommandResult
-startTLS conn = do
+-- |
+-- = Connected state commands
+
+-- |Upgrade a connection to a TLS connection from an insecure one. Accepts TLS settings
+--  you with your connection to use
+startTLS :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
+  TLSSettings -> m CommandResult
+startTLS conn tls = do
   res <- sendCommand conn "STARTTLS"
   let state = imapState conn
 
@@ -112,7 +145,6 @@ startTLS conn = do
       then do
         threadId <- liftIO . atomically . readTVar $ serverWatcherThread state
         liftIO . killThread . fromJust $ threadId
-        let tls = TLSSettingsSimple False False False
         liftIO $ connectionSetSecure (connectionContext state) (rawConnection state) tls
 
         watcherThreadId <- liftIO . forkIO $ requestWatcher conn
@@ -123,6 +155,25 @@ startTLS conn = do
     _ -> return ()
 
   return res
+
+capability :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> m CommandResult
+capability conn = sendCommand conn "CAPABILITY"
+
+noop :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> m CommandResult
+noop conn = sendCommand conn "NOOP"
+
+logout :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> m CommandResult
+logout conn = sendCommand conn "LOGOUT"
+
+-- |A simple authentication method, with user and password.
+--  Probably what's needed in 90% of cases.
+login :: (MonadPlus m, MonadIO m, Universe m) =>
+         IMAPConnection ->
+         T.Text ->
+         T.Text ->
+         m CommandResult
+login conn username password = sendCommand conn . encodeUtf8 $
+  T.intercalate " " ["LOGIN", escapeText username, escapeText password]
 
 -- |Authenticate with the server. During the authentication control is given
 --  to the library user and is returned to the library at the end of authentication
@@ -149,27 +200,9 @@ authenticate conn method authAction = do
 
   return ()
 
-login :: (MonadPlus m, MonadIO m, Universe m) =>
-         IMAPConnection ->
-         T.Text ->
-         T.Text ->
-         m CommandResult
-login conn username password = sendCommand conn . encodeUtf8 $
-  T.intercalate " " ["LOGIN", escapeText username, escapeText password]
+-- |
+-- = Authenticated state commands
 
-capability :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> m CommandResult
-capability conn = sendCommand conn "CAPABILITY"
-
-noop :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> m CommandResult
-noop conn = sendCommand conn "NOOP"
-
-logout :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> m CommandResult
-logout conn = sendCommand conn "LOGOUT"
-
-oneParamCommand :: (MonadPlus m, MonadIO m, Universe m) => T.Text ->
-  IMAPConnection -> T.Text -> m CommandResult
-oneParamCommand commandName conn mailboxName = sendCommand conn wholeCommand
-  where wholeCommand = encodeUtf8 $ T.intercalate " " [commandName, mailboxName]
 
 select :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
   T.Text -> m CommandResult
@@ -217,42 +250,6 @@ status conn mailboxName = sendCommand conn $ encodeUtf8 command
                                      "(MESSAGES", "RECENT", "UIDNEXT",
                                      "UIDVALIDITY", "UNSEEN)"]
 
-check :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> m CommandResult
-check conn = sendCommand conn "CHECK"
-
-close :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> m CommandResult
-close conn = sendCommand conn "CLOSE"
-
-expunge :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> m CommandResult
-expunge conn = sendCommand conn "EXPUNGE"
-
-search :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> T.Text ->
-  m CommandResult
-search = oneParamCommand "SEARCH"
-
-uidSearch :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> T.Text ->
-  m CommandResult
-uidSearch = oneParamCommand "UID SEARCH"
-
-
-fetch :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
-  T.Text -> m CommandResult
-fetch conn query = sendCommand conn $ encodeUtf8 command
-  where command = T.intercalate " " ["FETCH", query, "BODY[]"]
-
-uidFetch :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
-  T.Text -> m CommandResult
-uidFetch conn query = sendCommand conn $ encodeUtf8 command
-  where command = T.intercalate " " ["UID FETCH", query, "BODY[]"]
-
-fetchG :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
-  T.Text -> m CommandResult
-fetchG = oneParamCommand "FETCH"
-
-uidFetchG :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
-  T.Text -> m CommandResult
-uidFetchG = oneParamCommand "UID FETCH"
-
 append :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
   T.Text -> BSC.ByteString -> Maybe [Flag] -> Maybe T.Text -> m CommandResult
 append conn mailboxName message flagL dateTime = do
@@ -270,6 +267,49 @@ append conn mailboxName message flagL dateTime = do
   DT.traceShow command $ return ()
   sendCommand conn command
 
+-- |
+-- = Selected state commands
+check :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> m CommandResult
+check conn = sendCommand conn "CHECK"
+
+close :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> m CommandResult
+close conn = sendCommand conn "CLOSE"
+
+expunge :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> m CommandResult
+expunge conn = sendCommand conn "EXPUNGE"
+
+search :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> T.Text ->
+  m CommandResult
+search = oneParamCommand "SEARCH"
+
+uidSearch :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> T.Text ->
+  m CommandResult
+uidSearch = oneParamCommand "UID SEARCH"
+
+-- |Fetch message body by message sequence id
+fetch :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
+  T.Text -> m CommandResult
+fetch conn query = sendCommand conn $ encodeUtf8 command
+  where command = T.intercalate " " ["FETCH", query, "BODY[]"]
+
+-- |Fetch message body my message UID
+uidFetch :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
+  T.Text -> m CommandResult
+uidFetch conn query = sendCommand conn $ encodeUtf8 command
+  where command = T.intercalate " " ["UID FETCH", query, "BODY[]"]
+
+-- |A general fetch, you have to specify everything that
+--  goes after the `FETCH` keyword
+fetchG :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
+  T.Text -> m CommandResult
+fetchG = oneParamCommand "FETCH"
+
+-- |A general fetch using UIDs
+uidFetchG :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
+  T.Text -> m CommandResult
+uidFetchG = oneParamCommand "UID FETCH"
+
+
 store :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
   T.Text -> T.Text -> [Flag] -> m CommandResult
 store conn sequenceSet dataItem flagList = do
@@ -283,7 +323,6 @@ copy :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
 copy conn sequenceSet mailboxName = sendCommand conn command
   where command = BSC.intercalate " " ["COPY", encodeUtf8 sequenceSet,
                                        encodeUtf8 mailboxName]
-
 
 -- |Return the untagged replies or an error message if the tagged reply
 --  is of type NO or BAD. Also return all untagged replies received if
@@ -305,3 +344,8 @@ simpleFormat action = do
           Tagged t -> case resultState t of
             OK -> return . Right $ map (\(Untagged u) -> u) (init results)
             _ -> return . Left . decodeUtf8 . resultRest $ t
+
+oneParamCommand :: (MonadPlus m, MonadIO m, Universe m) => T.Text ->
+  IMAPConnection -> T.Text -> m CommandResult
+oneParamCommand commandName conn mailboxName = sendCommand conn wholeCommand
+  where wholeCommand = encodeUtf8 $ T.intercalate " " [commandName, mailboxName]
