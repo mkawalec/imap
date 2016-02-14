@@ -52,7 +52,6 @@ import Network.IMAP.Utils
 import Control.Monad (MonadPlus(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import ListT (toList, ListT)
-import Data.Either.Combinators (isRight)
 import qualified Data.List as L
 import qualified Debug.Trace as DT
 
@@ -263,9 +262,9 @@ uidFetchG = oneParamCommand "UID FETCH"
 
 append :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
   T.Text -> BSC.ByteString -> Maybe [Flag] -> Maybe T.Text -> m CommandResult
-append conn mailboxName message flags dateTime = do
-  let encodedFlags = if isJust flags
-                      then BSC.concat [" ", flagsToText $ fromJust flags]
+append conn mailboxName message flagL dateTime = do
+  let encodedFlags = if isJust flagL
+                      then BSC.concat [" ", flagsToText $ fromJust flagL]
                       else BSC.empty
   let encodedDate = if isJust dateTime
                       then BSC.concat [" \"", encodeUtf8 . fromJust $ dateTime, "\""]

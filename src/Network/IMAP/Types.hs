@@ -43,7 +43,7 @@ data ResponseRequest = ResponseRequest {
 data ResultState = OK | NO | BAD deriving (Show, Eq)
 
 data EmailAddress = EmailAddress {
-  emailLabel :: T.Text,
+  emailLabel :: Maybe T.Text,
   emailAddress :: T.Text
 } deriving (Show, Eq)
 
@@ -104,6 +104,7 @@ data UntaggedResult = Flags [Flag]
                     | Unseen Int
                     | PermanentFlags [Flag]
                     | UID Int
+                    | MessageId Int
                     | UIDNext Int
                     | UIDValidity Int
                     | OKResult T.Text
@@ -115,11 +116,6 @@ data UntaggedResult = Flags [Flag]
                     }
                     | StatusR T.Text [UntaggedResult]
                     | Search [Int]
-                    | Fetch {
-                      messageId :: Maybe Int,
-                      messageSpecifier :: T.Text,
-                      message :: BSC.ByteString
-                    }
                     | Envelope {
                       eDate :: Maybe T.Text,
                       eSubject :: Maybe T.Text,
@@ -136,23 +132,9 @@ data UntaggedResult = Flags [Flag]
                     | Size Int
                     | Unknown BSC.ByteString
                     | Body BSC.ByteString
-                    | BodyStructures [BodyStructure]
+                    | BodyStructure BSC.ByteString
                     deriving (Show, Eq)
 
-data BodyStructure = BodyStructure {
-  bodyType :: Maybe T.Text,
-  bodySubtype :: Maybe T.Text,
-  bodyParams :: Maybe [BodyParam],
-  bodyId :: Maybe T.Text,
-  bodyDescription :: Maybe T.Text,
-  bodyEncoding :: Maybe T.Text,
-  bodySize :: Int
-} deriving (Show, Eq)
-
-data BodyParam = BodyParam {
-  paramName :: T.Text,
-  paramValue :: T.Text
-} deriving (Show, Eq)
 
 data CommandResult = Tagged TaggedResult | Untagged UntaggedResult
   deriving (Show, Eq)

@@ -60,9 +60,9 @@ ifNotDisconnected conn action = do
     else action
 
 flagsToText :: [Flag] -> BSC.ByteString
-flagsToText flags = BSC.concat ["(", encodedFlags, ")"]
+flagsToText flagList = BSC.concat ["(", encodedFlags, ")"]
   where encodedFlags = BSC.intercalate " " textFlags
-        textFlags = flip map flags (\case
+        textFlags = flip map flagList (\case
           FSeen -> "\\Seen"
           FAnswered -> "\\Answered"
           FFlagged -> "\\Flagged"
