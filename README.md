@@ -20,7 +20,7 @@ You need a connection object first, so that you can execute commands on it. It's
     let params = ConnectionParams "imap.gmail.com" 993 (Just tls) Nothing
     conn <- connectServer params
 
-From now on you can run commands on this connection. We will use the `simpleFormat` helper function to convert Let's log in:
+From now on you can run commands on this connection. We will use the `simpleFormat` helper function to convert from `ListT` to `IO`. Let's log in:
 
     > simpleFormat $ login conn "mylogin" "mypass"
     Right [Capabilities [CIMAP4,CUnselect,CIdle,CNamespace,CQuota,CId,CExperimental "XLIST",CChildren,CExperimental "X-GM-EXT-1",CUIDPlus,CCompress "DEFLATE",CEnable,CMove,CCondstore,CEsearch,CUtf8 "ACCEPT",CListExtended,CListStatus,CAppendLimit 35882577]]
@@ -45,7 +45,7 @@ Search functions don't use `ListT` as they result in a bunch of numbers. If it i
     > simpleFormat $ uidFetch conn "219"
     Right [Fetch [MessageId 2,UID 219,Body "Delivered-To: michal@monad.cat\r\nReceived: by...
 
-If you need more control on the parameters of fetch, there is a more general function available to you:
+If you need more control on the parameters of fetch, there is a more general function available:
 
     > simpleFormat $ uidFetchG conn "219 ALL"
     Right [Fetch [MessageId 2,UID 219,Envelope {eDate = Just "Tue, 10 Nov 2015 20:42:47 +0000", eSubject=...}, Flags [FAnswered,FSeen], Size 4880]]
@@ -60,7 +60,7 @@ That's where streaming comes in handy - if these were message bodies you would p
 
 ### Replies we didn't expect
 
-IMAP protocol allows for messages pushed to the client at any time, even when they're not requested. It's usually used to notify the client that a new message had arrived, or as status of a message had changed as it was read by another client. These server messages wait for you in a bounded message queue and you can read them like:
+IMAP protocol allows for messages pushed to the client at any time, even when they're not requested. This is used to notify the client that a new message had arrived, or as status of a message had changed as it was read by another client. These server messages wait for you in a bounded message queue and you can read them like:
 
     import qualified Data.STM.RollingQueue as RQ
     msgs <- atomically . RQ.read . untaggedQueue $ conn
@@ -73,4 +73,4 @@ There's [an excellent article](http://www.haskellforall.com/2014/11/how-to-build
 
 ## ToDo
 
-We would like to see more tests. Parsing of `BODYSTRUCTURE` replies would be nice, but the output format seems to be poorly documented and a bit insane, so PRs are appreciated.
+We would like to see more tests. Actual parsing of `BODYSTRUCTURE` replies would be nice, but the output format seems to be poorly documented and a bit insane, so PRs are appreciated.
