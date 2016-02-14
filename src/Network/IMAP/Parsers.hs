@@ -12,14 +12,14 @@ import Data.Word8
 
 import Control.Applicative
 
-parseReply :: Parser (Either ErrorMessage [CommandResult])
+parseReply :: Parser (Either ErrorMessage CommandResult)
 parseReply = parseFetch <|> parseLine
 
-parseLine :: Parser (Either ErrorMessage [CommandResult])
+parseLine :: Parser (Either ErrorMessage CommandResult)
 parseLine = do
   parsed <- parseUntagged <|> parseTagged
   string "\r\n"
-  return $ parsed >>= \p -> return [p]
+  return parsed
 
 parseTagged :: Parser (Either ErrorMessage CommandResult)
 parseTagged = do

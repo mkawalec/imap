@@ -22,7 +22,6 @@ import Control.Concurrent.STM.TVar
 import Control.Concurrent (killThread)
 import Control.Monad.STM
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import qualified Debug.Trace as DT
 import Control.Exception (SomeException)
 import qualified Control.Monad.Catch as C
 import Control.Monad.Catch (MonadCatch)
@@ -32,10 +31,10 @@ import System.Log.Logger (errorM)
 
 requestWatcher :: (MonadIO m, Universe m, MonadCatch m) => IMAPConnection -> m ()
 requestWatcher conn = flip C.catch (handleExceptions conn) $ do
-  parsedLines <- getParsedChunk (rawConnection . imapState $ conn) (AP.parse parseReply)
+  parsedLine <- getParsedChunk (rawConnection . imapState $ conn) (AP.parse parseReply)
 
-  if isRight parsedLines
-    then mapM_ (reactToReply conn) $ fromRight' parsedLines
+  if isRight parsedLine
+    then reactToReply conn $ fromRight' parsedLine
     else return ()
 
   requestWatcher conn
@@ -120,11 +119,11 @@ omitOneLine :: BSC.ByteString -> BSC.ByteString
 omitOneLine bytes = if BSC.length withLF > 0 then BSC.tail withLF else withLF
   where withLF = BSC.dropWhile (/= '\n') bytes
 
-type ParseResult = Either ErrorMessage [CommandResult]
+type ParseResult = Either ErrorMessage CommandResult
 parseChunk :: (BSC.ByteString -> Result ParseResult) ->
               BSC.ByteString ->
               ((Maybe ParseResult, Maybe (BSC.ByteString -> Result ParseResult)), BSC.ByteString)
-parseChunk parser chunk = DT.traceShow chunk $
+parseChunk parser chunk =
     case parser chunk of
       Fail left _ msg -> ((Just . Left . T.pack $ msg, Nothing), omitOneLine left)
       Partial continuation -> ((Nothing, Just continuation), BS.empty)

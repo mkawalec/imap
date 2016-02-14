@@ -16,7 +16,7 @@ import Control.Applicative
 import Control.Monad (liftM)
 
 
-parseFetch :: Parser (Either ErrorMessage [CommandResult])
+parseFetch :: Parser (Either ErrorMessage CommandResult)
 parseFetch = do
   string "* "
   msgId <- (AP.takeWhile1 isDigit >>= return . toInt)
@@ -27,7 +27,7 @@ parseFetch = do
 
   return $ (DT.traceShow parsedFetch $ ()) `seq` ()
   let allInOneEither = mapM id $ msgId':parsedFetch
-  return $ allInOneEither >>= return . map Untagged
+  return $ allInOneEither >>= return . Untagged . Fetch
 
 parseSpecifiers :: Parser [Either ErrorMessage UntaggedResult]
 parseSpecifiers = do

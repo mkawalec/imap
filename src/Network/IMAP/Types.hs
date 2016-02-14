@@ -114,6 +114,7 @@ data UntaggedResult = Flags [Flag]
                       hierarchyDelimiter :: T.Text,
                       inboxName :: T.Text
                     }
+                    | Fetch [UntaggedResult]
                     | StatusR T.Text [UntaggedResult]
                     | Search [Int]
                     | Envelope {
