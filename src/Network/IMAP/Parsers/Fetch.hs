@@ -23,14 +23,14 @@ parseFetch = do
   let msgId' = msgId >>= Right . MessageId
   string " FETCH ("
 
-  parsedFetch <- parseSpecifier
+  parsedFetch <- parseSpecifiers
 
-  DT.traceShow parsedFetch $ return ()
+  return $ (DT.traceShow parsedFetch $ ()) `seq` ()
   let allInOneEither = mapM id $ msgId':parsedFetch
   return $ allInOneEither >>= return . map Untagged
 
-parseSpecifier :: Parser [Either ErrorMessage UntaggedResult]
-parseSpecifier = do
+parseSpecifiers :: Parser [Either ErrorMessage UntaggedResult]
+parseSpecifiers = do
   nextChar <- AP.peekWord8
   if (not . isJust $ nextChar) || (fromJust nextChar == _cr)
     then return []
@@ -44,8 +44,7 @@ parseSpecifier = do
                   parseNumber UID "UID" "" <|>
                   Right <$> parseBodyStructure)
 
-      DT.traceShow nextRes $ return ()
-      (nextRes:) <$> (AP.anyWord8 *> parseSpecifier)
+      (nextRes:) <$> (AP.anyWord8 *> parseSpecifiers)
 
 parseInternalDate :: Parser UntaggedResult
 parseInternalDate = liftM InternalDate $ string "INTERNALDATE " *> parseQuotedText
@@ -66,9 +65,8 @@ parseBody = do
 
 parseBodyStructure :: Parser UntaggedResult
 parseBodyStructure = do
-  string "BODYSTRUCTURE "
+  string "BODYSTRUCTURE " <|> string "BODY "
   structure <- eatUntilClosingParen
-  word8 _parenright
   return . BodyStructure $ BSC.snoc structure ')'
 
 

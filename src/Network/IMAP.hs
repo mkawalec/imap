@@ -224,10 +224,11 @@ close conn = sendCommand conn "CLOSE"
 expunge :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> m CommandResult
 expunge conn = sendCommand conn "EXPUNGE"
 
-generalSearch :: T.Text -> IMAPConnection ->
-  T.Text -> IO (Either ErrorMessage [Int])
+generalSearch :: (MonadIO m, Universe m) => T.Text -> IMAPConnection ->
+  T.Text -> m (Either ErrorMessage [Int])
 generalSearch commandName conn query = do
-  result <- simpleFormat (oneParamCommand commandName conn query :: ListT IO CommandResult)
+  result <- liftIO $ simpleFormat (oneParamCommand commandName conn query ::
+                                   ListT IO CommandResult)
 
   case result of
     Right u -> case head u of
@@ -235,10 +236,12 @@ generalSearch commandName conn query = do
       _ -> return . Left $ "Received reply of a wrong type"
     Left l -> return . Left $ l
 
-search :: IMAPConnection -> T.Text -> IO (Either ErrorMessage [Int])
+search :: (MonadIO m, Universe m) => IMAPConnection -> T.Text ->
+  m (Either ErrorMessage [Int])
 search = generalSearch "SEARCH"
 
-uidSearch :: IMAPConnection -> T.Text -> IO (Either ErrorMessage [Int])
+uidSearch :: (MonadIO m, Universe m) => IMAPConnection -> T.Text ->
+  m (Either ErrorMessage [Int])
 uidSearch = generalSearch "UID SEARCH"
 
 

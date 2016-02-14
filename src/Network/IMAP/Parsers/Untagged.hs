@@ -10,7 +10,6 @@ import qualified Data.Text as T
 import qualified Data.Text.Read as TR
 import Data.Text.Encoding (decodeUtf8)
 import Data.Either.Combinators (mapBoth, mapRight)
-import qualified Debug.Trace as DT
 
 import Control.Applicative
 import Control.Monad (mzero)

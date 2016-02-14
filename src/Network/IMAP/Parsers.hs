@@ -9,7 +9,6 @@ import Network.IMAP.Parsers.Untagged
 import Data.Attoparsec.ByteString
 import qualified Data.Attoparsec.ByteString as AP
 import Data.Word8
-import qualified Debug.Trace as DT
 
 import Control.Applicative
 

@@ -6,17 +6,10 @@ import Data.Attoparsec.ByteString
 import qualified Data.Attoparsec.ByteString as AP
 import Data.Word8
 import qualified Data.Text as T
-import qualified Data.Text.Read as TR
 import Data.Text.Encoding (decodeUtf8)
 import qualified Data.ByteString.Char8 as BSC
 import qualified Data.ByteString as BS
-import Data.Maybe (fromJust, isJust)
-import Data.Either.Combinators (mapBoth, mapRight, isRight,
-  fromRight', fromLeft', rightToMaybe)
-import qualified Debug.Trace as DT
-
-import Control.Applicative
-import Control.Monad (mzero, liftM)
+import Data.Either.Combinators (rightToMaybe)
 
 eatUntilClosingParen :: Parser BSC.ByteString
 eatUntilClosingParen = scan 0 hadClosedAllParens <* word8 _parenright
@@ -102,9 +95,9 @@ parseNumber constructor prefix postfix = do
   if not . BSC.null $ prefix
     then string prefix <* word8 _space
     else return BSC.empty
-  count <- takeWhile1 isDigit
+  number <- takeWhile1 isDigit
   if not . BSC.null $ postfix
     then word8 _space *> string postfix
     else return BSC.empty
 
-  return $ toInt count >>= return . constructor
+  return $ toInt number >>= return . constructor
