@@ -4,6 +4,7 @@ packages:
 - '.'
 extra-deps:
 - QuickCheck-2.8.2
+- monadIO-0.10.1.4
 - rolling-queue-0.1
 - text-1.2.2.0
 resolver: lts-5.0
