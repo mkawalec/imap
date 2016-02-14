@@ -8,7 +8,7 @@ It tries to implement [RFC3501](https://tools.ietf.org/html/rfc3501) as faithful
 
 For a description of types used in this tutorial or an in-depth description of functions presented, please check the documentation or the source code.
 
-All of the commands will output their results in `ListT` and `MonadIO`. Results consist of a list of `UntaggedResult`s followed by a single `TaggedResult` that describes the command result.
+All of the commands will output their results in `ListT` and `MonadIO`. Results consist of a list of `UntaggedResult`s followed by a single `TaggedResult` that describes the command state (if it succeeded or failed).
 
 We provide a helper function that simplifies the output types for the cases when you don't care about the streaming and just want a list of `UntaggedResult`s or an error message. Depending on your needs you will probably use it for all the commands that are not `FETCH`.
 
