@@ -6,15 +6,18 @@ It tries to implement [RFC3501](https://tools.ietf.org/html/rfc3501) as faithful
 
 ## Usage
 
-Almost all of the commands available (`search` is an exception here) to you will output their results in `ListT` and `MonadIO`. Results consist of a list of `UntaggedResult`s followed by a single `TaggedResult` that describes the command result.
+For a description of types used in this tutorial or an in-depth description of functions presented, please check the documentation or the source code.
 
-We've provided a helper function that simplifies the output types for the cases when you don't care about the streaming and just want a list of `UntaggedResult`s or an error message. Depending on your needs you will probably use it for all the commands that are not `FETCH`.
+All of the commands will output their results in `ListT` and `MonadIO`. Results consist of a list of `UntaggedResult`s followed by a single `TaggedResult` that describes the command result.
+
+We provide a helper function that simplifies the output types for the cases when you don't care about the streaming and just want a list of `UntaggedResult`s or an error message. Depending on your needs you will probably use it for all the commands that are not `FETCH`.
 
 ### Simple, no streaming
 
 You need a connection object first, so that you can execute commands on it. It's produced by `connectServer`, which accepts parameters from [Network.Connection](https://hackage.haskell.org/package/connection-0.2.5/docs/Network-Connection.html#t:Connection). Say you want to connect to gmail:
 
     import Network.Connection
+    import Network.IMAP
 
     let tls = TLSSettingsSimple False False False
     let params = ConnectionParams "imap.gmail.com" 993 (Just tls) Nothing
@@ -37,10 +40,10 @@ Oh, let's fix that
 
 Again you can use the metadata if you wish to. Let's see what messages we have ([consult the RFC](https://tools.ietf.org/html/rfc3501#section-6.4.4) if you're unsure about the parameter to `uidSearch`):
 
-    > uidSearch conn "ALL"
-    Right [105,219,411,424,425,748,763,770,774,819,824,825,826,827,828,841,842,852,857,858,909,926,946,948,955,962,965,975,984,985,989,990,991,992,993,994,999,1001,1003,1007,1008,1009,1010,1011,1014,1016,1017,1018,1020,1026,1027,1028,1029,1030,1034,1036,1037,1038,1039,1040,1042,1044,1047,1048,1049]
+    > simpleFormat $ uidSearch conn "ALL"
+    Right [Search [105,219,411,424,425,748,763,770,774,819,824,825,..]]
 
-Search functions don't use `ListT` as they result in a bunch of numbers. If it is essential to you to have `ListT` here, open an issue. Fetching a message is straigtforward as well:
+Fetching a message is straigtforward as well:
 
     > simpleFormat $ uidFetch conn "219"
     Right [Fetch [MessageId 2,UID 219,Body "Delivered-To: michal@monad.cat\r\nReceived: by...
