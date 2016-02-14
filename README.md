@@ -60,7 +60,16 @@ That's where streaming comes in handy - if these were message bodies you would p
 
 ### Replies we didn't expect
 
+IMAP protocol allows for messages pushed to the client at any time, even when they're not requested. It's usually used to notify the client that a new message had arrived, or as status of a message had changed as it was read by another client. These server messages wait for you in a bounded message queue and you can read them like:
+
+    import qualified Data.STM.RollingQueue as RQ
+    msgs <- atomically . RQ.read . untaggedQueue $ conn
+
+Where `conn` is the connection from previous step.
+
 ### Streaming
+
+There's [an excellent article](http://www.haskellforall.com/2014/11/how-to-build-library-agnostic-streaming.html) by Gabriel Gonzalez you should read :)
 
 ## ToDo
 

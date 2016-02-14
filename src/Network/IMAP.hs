@@ -250,7 +250,7 @@ fetch :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
 fetch conn query = sendCommand conn $ encodeUtf8 command
   where command = T.intercalate " " ["FETCH", query, "BODY[]"]
 
-uidFetch :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
+uidFetch :: (MonadPlus m, MonadIO (m IO), Universe m) => IMAPConnection ->
   T.Text -> m CommandResult
 uidFetch conn query = sendCommand conn $ encodeUtf8 command
   where command = T.intercalate " " ["UID FETCH", query, "BODY[]"]
