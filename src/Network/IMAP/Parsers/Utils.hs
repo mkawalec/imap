@@ -10,19 +10,19 @@ import Data.Text.Encoding (decodeUtf8)
 import qualified Data.ByteString.Char8 as BSC
 import qualified Data.ByteString as BS
 import Data.Either.Combinators (rightToMaybe)
+import Control.Monad (liftM)
 
 eatUntilClosingParen :: Parser BSC.ByteString
 eatUntilClosingParen = scan 0 hadClosedAllParens <* word8 _parenright
 
 hadClosedAllParens :: Int -> Word8 -> Maybe Int
-hadClosedAllParens openingParenCount char =
-  if char == _parenright
-    then if openingParenCount == 1
+hadClosedAllParens openingParenCount char
+  | char == _parenright =
+    if openingParenCount == 1
       then Nothing
       else Just $ openingParenCount - 1
-  else if char == _parenleft
-    then Just $ openingParenCount + 1
-    else Just openingParenCount
+  | char == _parenleft = Just $ openingParenCount + 1
+  | otherwise =  Just openingParenCount
 
 
 parseEmailList :: Parser [EmailAddress]
@@ -40,7 +40,7 @@ parseEmail = do
   string "\")"
   let fullAddr = decodeUtf8 $ BSC.concat [emailUsername, "@", emailDomain]
 
-  return $ EmailAddress (label >>= return . decodeUtf8) fullAddr
+  return $ EmailAddress (liftM decodeUtf8 label) fullAddr
 
 nilOrValue :: Parser a -> Parser (Maybe a)
 nilOrValue parser = rightToMaybe <$> AP.eitherP (string "NIL") parser
@@ -72,9 +72,9 @@ parseListLikeResp prefix = do
   nameAttributes <- parseNameAttribute `sepBy` word8 _space
 
   string ") \""
-  delimiter <- (AP.anyWord8 >>= return . decodeUtf8 . BS.singleton)
+  delimiter <- liftM (decodeUtf8 . BS.singleton) AP.anyWord8
   string "\" "
-  name <- (AP.takeWhile1 (/= _cr) >>= return . decodeUtf8)
+  name <- liftM decodeUtf8 $ AP.takeWhile1 (/= _cr)
 
   let actualName = T.dropAround (== '"') name
   return $ ListR nameAttributes delimiter actualName
@@ -100,4 +100,4 @@ parseNumber constructor prefix postfix = do
     then word8 _space *> string postfix
     else return BSC.empty
 
-  return $ toInt number >>= return . constructor
+  return $ liftM constructor (toInt number)

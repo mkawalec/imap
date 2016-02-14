@@ -12,7 +12,7 @@ import Data.Text.Encoding (decodeUtf8)
 import Data.Either.Combinators (mapBoth, mapRight)
 
 import Control.Applicative
-import Control.Monad (mzero)
+import Control.Monad (mzero, liftM, (>=>))
 
 parseOk :: Parser UntaggedResult
 parseOk = do
@@ -61,7 +61,7 @@ parseOkResp innerParser = string "OK [" *> innerParser <* string "]"
 
 parseUnseen :: Parser (Either ErrorMessage UntaggedResult)
 parseUnseen = parseOkResp $
-  (\x -> toInt x >>= Right . Unseen) <$>
+  (toInt >=> (Right . Unseen)) <$>
   (string "UNSEEN " *> takeWhile1 isDigit)
 
 parsePermanentFlags :: Parser UntaggedResult
@@ -80,9 +80,9 @@ parseHighestModSeq = parseOkResp $ parseNumber HighestModSeq "HIGHESTMODSEQ" ""
 parseStatusItem :: Parser (Either ErrorMessage UntaggedResult)
 parseStatusItem = do
   anyWord8
-  itemName <- (AP.takeWhile1 isAtomChar >>= return . decodeUtf8)
+  itemName <- liftM decodeUtf8 $ AP.takeWhile1 isAtomChar
   string " "
-  value <- (AP.takeWhile1 isDigit >>= return . decodeUtf8)
+  value <- liftM decodeUtf8 $ AP.takeWhile1 isDigit
 
   let decodingError = T.concat ["Error decoding '", value, "' as integer"]
   let valAsNumber = mapBoth (const decodingError) fst $ TR.decimal value
@@ -98,23 +98,23 @@ parseStatusItem = do
 parseStatus :: Parser (Either ErrorMessage UntaggedResult)
 parseStatus = do
   string "STATUS "
-  mailboxName <- (AP.takeWhile1 isAtomChar >>= return . decodeUtf8)
+  mailboxName <- liftM decodeUtf8 $ AP.takeWhile1 isAtomChar
 
   string " "
   statuses <- parseStatusItem `manyTill` string ")"
-  let formattedStatuses = mapM id statuses
+  let formattedStatuses = sequence statuses
 
-  return $ formattedStatuses >>= return . StatusR mailboxName
+  return $ liftM (StatusR mailboxName) formattedStatuses
 
 parseCapabilityList :: Parser (Either ErrorMessage UntaggedResult)
 parseCapabilityList = do
   string "CAPABILITY "
   caps <- (parseCapabilityWithValue <|> parseNamedCapability) `sepBy` word8 _space
-  return . (mapRight Capabilities) $ (mapM id) caps
+  return . mapRight Capabilities $ sequence caps
 
 parseCapabilityWithValue :: Parser (Either ErrorMessage Capability)
 parseCapabilityWithValue = do
-  name <- (AP.takeWhile1 isAtomChar >>= return . decodeUtf8)
+  name <- liftM decodeUtf8 (AP.takeWhile1 isAtomChar)
   word8 _equal
   value <- AP.takeWhile1 isAtomChar
 
@@ -125,7 +125,7 @@ parseCapabilityWithValue = do
     "compress" -> return . Right . CCompress $ decodedValue
     "utf8" -> return . Right . CUtf8 $ decodedValue
     "auth" -> return . Right . CAuth $ decodedValue
-    "appendlimit" -> return (valAsNumber >>= return . CAppendLimit)
+    "appendlimit" -> return $ liftM CAppendLimit valAsNumber
     _ -> return . Right $ COther name (Just decodedValue)
 
 parseNamedCapability :: Parser (Either ErrorMessage Capability)
@@ -158,11 +158,11 @@ parseExpunge = do
   msgId <- AP.takeWhile1 isDigit
   string " EXPUNGE"
 
-  return $ toInt msgId >>= return . Expunge
+  return $ liftM Expunge (toInt msgId)
 
 parseSearchResult :: Parser (Either ErrorMessage UntaggedResult)
 parseSearchResult = do
   string "SEARCH "
-  msgIds <- (AP.takeWhile1 isDigit) `sepBy` word8 _space
-  let parsedIds = mapM id $ map toInt msgIds
-  return $ parsedIds >>= return . Search
+  msgIds <- AP.takeWhile1 isDigit `sepBy` word8 _space
+  let parsedIds = mapM toInt msgIds
+  return $ liftM Search parsedIds

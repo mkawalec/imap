@@ -2,7 +2,7 @@
 -- see http://haskell.org/cabal/users-guide/
 
 name:                imap
-version:             0.1.0.2
+version:             0.1.0.3
 synopsis:            An efficient IMAP client library, with SSL and streaming
 license:             BSD3
 license-file:        LICENSE
@@ -117,7 +117,6 @@ library
                         list-t == 0.4.5.1,
                         monadIO == 0.10.1.4,
                         derive == 2.5.23,
-                        data-default == 0.5.3,
                         stm-delay == 0.1.1.1,
                         exceptions == 0.8.2.1
   hs-source-dirs:       src
@@ -152,7 +151,6 @@ Test-Suite imap-test
                         list-t == 0.4.5.1,
                         monadIO == 0.10.1.4,
                         derive == 2.5.23,
-                        data-default == 0.5.3,
                         stm-delay == 0.1.1.1,
                         exceptions == 0.8.2.1,
 

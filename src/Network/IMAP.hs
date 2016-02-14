@@ -150,7 +150,7 @@ startTLS conn tls = do
         watcherThreadId <- liftIO . forkIO $ requestWatcher conn
         liftIO . atomically $ do
           writeTVar (serverWatcherThread state) $ Just watcherThreadId
-          writeTVar (connectionState conn) $ Connected
+          writeTVar (connectionState conn) Connected
       else return ()
     _ -> return ()
 

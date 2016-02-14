@@ -10,7 +10,6 @@ import Data.Word8
 import qualified Data.ByteString.Char8 as BSC
 import Data.Maybe (fromJust, isJust)
 import Data.Either.Combinators (isRight, fromRight', fromLeft')
-import qualified Debug.Trace as DT
 
 import Control.Applicative
 import Control.Monad (liftM)
@@ -25,7 +24,6 @@ parseFetch = do
 
   parsedFetch <- parseSpecifiers
 
-  return $ (DT.traceShow parsedFetch $ ()) `seq` ()
   let allInOneEither = mapM id $ msgId':parsedFetch
   return $ allInOneEither >>= return . Untagged . Fetch
 
