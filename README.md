@@ -12,6 +12,8 @@ All of the commands will output their results in `ListT` and `MonadIO`. Results 
 
 We provide a helper function that simplifies the output types for the cases when you don't care about the streaming and just want a list of `UntaggedResult`s or an error message. Depending on your needs you will probably use it for all the commands that are not `FETCH`.
 
+Also, remember that you probably have to keep the connection alive so that the server doesn't disconnect you. Send a `noop` from time to time to achieve that.
+
 ### Simple, no streaming
 
 You need a connection object first, so that you can execute commands on it. It's produced by `connectServer`, which accepts parameters from [Network.Connection](https://hackage.haskell.org/package/connection-0.2.5/docs/Network-Connection.html#t:Connection). Say you want to connect to gmail:

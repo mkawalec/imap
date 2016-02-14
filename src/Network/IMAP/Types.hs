@@ -13,34 +13,49 @@ import Network.Connection (Connection, ConnectionContext,
 import ListT (ListT)
 import Control.Monad.IO.Class (liftIO)
 
+-- |A type alias used for an error message
 type ErrorMessage = T.Text
+-- |Each command sent to the server is identified by a random id.
+--  this alias helps noticing where this happens
 type CommandId = BSC.ByteString
 
+-- |Connection with the server can be in one of these states
 data ConnectionState = UndefinedState
                      | Connected
                      | Disconnected
                      deriving (Show)
 
 data IMAPConnection = IMAPConnection {
+  -- |The current connection state
   connectionState :: TVar ConnectionState,
+  -- |Contains commands sent by the server which we didn't expect.
+  --  Probably message and mailbox state updates
   untaggedQueue :: RQ.RollingQueue UntaggedResult,
-  serverWatcherThread :: TVar (Maybe ThreadId),
+  -- |Internal state of the library
   imapState :: IMAPState
 }
 
 data IMAPState = IMAPState {
+  -- |The actual connection with the server from
+  --  Network.Connection. Only use if you know what you're doing
   rawConnection :: !Connection,
+  -- |Context from Network.Connection
   connectionContext :: ConnectionContext,
+  -- |Contains requests for response that weren't yet read by the watcher thread.
   responseRequests :: TQueue ResponseRequest,
+  -- |Id of the thread the watcher executes on
+  serverWatcherThread :: TVar (Maybe ThreadId),
+  -- |All the unfulfilled requests the watcher thread knows about
   outstandingReqs :: TVar [ResponseRequest]
 }
 
 data ResponseRequest = ResponseRequest {
+  -- |Thread that posted the request should watch this
+  --  queue for responses to the request.
   responseQueue :: TQueue CommandResult,
+  -- |Id of the request, which is the same as the id sent to the server.
   respRequestId :: CommandId
 } deriving (Eq)
-
-data ResultState = OK | NO | BAD deriving (Show, Eq)
 
 data EmailAddress = EmailAddress {
   emailLabel :: Maybe T.Text,
@@ -76,47 +91,60 @@ data Capability = CIMAP4
                 | CListExtended
                 | CListStatus
                 | CAppendLimit Int
+                -- |First parameter is the name of a capability
+                --  and the second can contain a value, if the capability
+                --  is of the form `NAME=VALUE`
                 | COther T.Text (Maybe T.Text)
                 deriving (Show, Eq, Ord)
 
 
+-- |Always the last result of the command, contains it's metadata
 data TaggedResult = TaggedResult {
+                      -- |Id of the command that completes
                       commandId :: CommandId,
+                      -- |State returned by the serverside
                       resultState :: !ResultState,
+                      -- |Rest of the result, usually a human-readable form of a result
                       resultRest :: BSC.ByteString
                     } deriving (Show, Eq)
 
-data NameAttribute = Noinferiors
-                   | Noselect
-                   | Marked
-                   | Unmarked
-                   | HasNoChildren
-                   | OtherNameAttr T.Text
-                   deriving (Show, Eq, Ord)
+-- |Tagged results can be in on of these three states
+data ResultState = OK | NO | BAD deriving (Show, Eq)
 
-data UntaggedResult = Flags [Flag]
-                    | Exists Int
-                    | Expunge Int
-                    | Bye
+-- |Untagged replies are the actual data returned in response to the commands.
+data UntaggedResult = Flags [Flag] -- ^ A list of flags a mailbox has
+                    | Exists Int -- ^ How many messages exist in a mailbox
+                    | Expunge Int -- ^ How many messages are expunged
+                    | Bye -- ^ Returned by the server when it cleanly disconnects
                     | HighestModSeq Int
-                    | Recent Int
-                    | Messages Int
-                    | Unseen Int
+                    | Recent Int -- ^ Number of recent messages
+                    | Messages Int -- ^ Number of messages in a mailbox
+                    | Unseen Int -- ^ Number of unseen messages
                     | PermanentFlags [Flag]
-                    | UID Int
-                    | MessageId Int
+                    | UID Int -- ^ UID of a message
+                    | MessageId Int -- ^ A sequence id of a message
+                    -- |UID that will be given to the next message added to this mailbox
                     | UIDNext Int
+                    -- |A triple of mailbox name, it's UIDValidity value and message UID
+                    --  is always unique for a given message
                     | UIDValidity Int
-                    | OKResult T.Text
-                    | Capabilities [Capability]
+                    | OKResult T.Text -- ^ Result of an OK response
+                    | Capabilities [Capability] -- ^ What server advertises that it supports
+                    -- |Response to the `LIST` command
                     | ListR {
-                      flags :: [NameAttribute],
+                      flags :: [NameAttribute], -- ^ flags that a mailbox has
+                      -- |Character sequence that marks a new level of hierarchy
+                      --  in the inbox name (usually a slash)
                       hierarchyDelimiter :: T.Text,
+                      -- |Name of the mailbox
                       inboxName :: T.Text
                     }
-                    | Fetch [UntaggedResult]
+                    | Fetch [UntaggedResult] -- ^ Fetch response, contains many responses
+                    -- |Status of a mailbox, will contain many different responses inside
                     | StatusR T.Text [UntaggedResult]
+                    -- |A list of message IDs or UIDs fullfilling the search criterions
                     | Search [Int]
+                    -- |A parsed ENVELOPE reply, prefixed to avoid name clashes
                     | Envelope {
                       eDate :: Maybe T.Text,
                       eSubject :: Maybe T.Text,
@@ -130,23 +158,32 @@ data UntaggedResult = Flags [Flag]
                       eMessageId :: Maybe T.Text
                     }
                     | InternalDate T.Text
-                    | Size Int
-                    | Unknown BSC.ByteString
-                    | Body BSC.ByteString
-                    | BodyStructure BSC.ByteString
+                    | Size Int -- ^ Message size
+                    | Unknown BSC.ByteString -- ^ An unsupported value
+                    | Body BSC.ByteString -- ^ Message body, or headers
+                    | BodyStructure BSC.ByteString -- ^ An unparsed bodystructure
                     deriving (Show, Eq)
 
+data NameAttribute = Noinferiors
+                   | Noselect
+                   | Marked
+                   | Unmarked
+                   | HasNoChildren
+                   | OtherNameAttr T.Text
+                   deriving (Show, Eq, Ord)
 
+-- |Command result consits of a sequence of untagged results followed
+--  by a single tagged result that specifies if the command overall succeeded.
+--  This is a sum type to bind those two types together
 data CommandResult = Tagged TaggedResult | Untagged UntaggedResult
   deriving (Show, Eq)
 
+-- |If you don't care about streaming you will get results in this simplified
+--  data type, in which the ErrorMessage comes from TaggedResult if it failed.
 type SimpleResult = Either ErrorMessage [UntaggedResult]
 
-$(derive makeIs ''Flag)
-$(derive makeIs ''UntaggedResult)
-$(derive makeIs ''CommandResult)
-$(derive makeIs ''ConnectionState)
-
+-- |Every function that communicates with the outside world should run
+--  in the Universe monad, which provides an ability to use mocks when testing
 class Monad m => Universe m where
   connectionPut' :: Connection -> BSC.ByteString -> m ()
   connectionGetChunk'' :: Connection -> (BSC.ByteString -> (a, BSC.ByteString)) -> m a
@@ -158,3 +195,8 @@ instance Universe IO where
 instance Universe (ListT IO) where
   connectionPut' c d = liftIO $ connectionPut c d
   connectionGetChunk'' c cont = liftIO $ connectionGetChunk' c cont
+
+$(derive makeIs ''Flag)
+$(derive makeIs ''UntaggedResult)
+$(derive makeIs ''CommandResult)
+$(derive makeIs ''ConnectionState)

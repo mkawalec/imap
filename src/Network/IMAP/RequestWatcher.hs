@@ -70,7 +70,7 @@ updateConnState conn command = do
 
 shouldIDie :: (MonadIO m, Universe m) => IMAPConnection -> m ()
 shouldIDie conn = liftIO $ do
-  threadId <- atomically . readTVar $ serverWatcherThread conn
+  threadId <- atomically . readTVar . serverWatcherThread . imapState $ conn
   connState <- atomically . readTVar $ connectionState conn
 
   if isDisconnected connState && isJust threadId
@@ -148,8 +148,8 @@ handleExceptions conn e = do
 
   threadId <- liftIO . atomically $ do
     writeTVar (connectionState conn) Disconnected
-    let actualThreadId = readTVar $ serverWatcherThread conn
-    writeTVar (serverWatcherThread conn) Nothing
+    let actualThreadId = readTVar $ serverWatcherThread state
+    writeTVar (serverWatcherThread state) Nothing
     actualThreadId
 
   requests <- liftIO . atomically $ do

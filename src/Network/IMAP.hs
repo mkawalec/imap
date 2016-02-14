@@ -70,18 +70,19 @@ connectServer connParams = do
     rawConnection = connection,
     connectionContext = context,
     responseRequests = responseRequestsQueue,
+    serverWatcherThread = watcherId,
     outstandingReqs = requests
   }
 
   let conn = IMAPConnection {
     connectionState = connState,
-    serverWatcherThread = watcherId,
     untaggedQueue = untaggedRespsQueue,
     imapState = state
   }
 
   watcherThreadId <- forkIO $ requestWatcher conn
-  atomically $ writeTVar (serverWatcherThread conn) $ Just watcherThreadId
+  atomically $ writeTVar (serverWatcherThread . imapState $ conn)
+    (Just watcherThreadId)
 
   return conn
 
@@ -104,19 +105,19 @@ sendCommand conn command = ifNotDisconnected conn $ do
 startTLS :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection -> m CommandResult
 startTLS conn = do
   res <- sendCommand conn "STARTTLS"
+  let state = imapState conn
 
   case res of
     Tagged (TaggedResult _ resState _) -> if resState == OK
       then do
-        threadId <- liftIO . atomically . readTVar $ serverWatcherThread conn
+        threadId <- liftIO . atomically . readTVar $ serverWatcherThread state
         liftIO . killThread . fromJust $ threadId
         let tls = TLSSettingsSimple False False False
-        let state = imapState conn
         liftIO $ connectionSetSecure (connectionContext state) (rawConnection state) tls
 
         watcherThreadId <- liftIO . forkIO $ requestWatcher conn
         liftIO . atomically $ do
-          writeTVar (serverWatcherThread conn) $ Just watcherThreadId
+          writeTVar (serverWatcherThread state) $ Just watcherThreadId
           writeTVar (connectionState conn) $ Connected
       else return ()
     _ -> return ()
@@ -129,12 +130,13 @@ authenticate :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
   BSC.ByteString -> (IMAPConnection -> m ()) -> m ()
 authenticate conn method authAction = do
   requestId <- liftIO genRequestId
+  let state = imapState conn
   let commandLine = BSC.concat [requestId, " AUTHENTICATE ", method, "\r\n"]
 
   connectionPut' (rawConnection . imapState $ conn) commandLine
 
   -- kill the watcher thread
-  threadId <- liftIO . atomically . readTVar $ serverWatcherThread conn
+  threadId <- liftIO . atomically . readTVar . serverWatcherThread $ state
   liftIO . killThread . fromJust $ threadId
 
   authAction conn
@@ -142,7 +144,7 @@ authenticate conn method authAction = do
   -- Bring the watcher back up
   watcherThreadId <- liftIO . forkIO $ requestWatcher conn
   liftIO . atomically $ do
-    writeTVar (serverWatcherThread conn) $ Just watcherThreadId
+    writeTVar (serverWatcherThread state) $ Just watcherThreadId
     writeTVar (connectionState conn) $ Connected
 
   return ()

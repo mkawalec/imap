@@ -84,11 +84,12 @@ getConn = do
   let tlsSettings = Just $ TLSSettingsSimple False False False
   let params = ConnectionParams "imap.gmail.com" 993 tlsSettings Nothing
 
-  conn <- connectServer params 
-  threadId <- atomically . readTVar $ serverWatcherThread conn
+  conn <- connectServer params
+  let state = imapState conn
+  threadId <- atomically . readTVar $ serverWatcherThread state
   killThread . fromJust $ threadId
 
-  atomically $ writeTVar (serverWatcherThread conn) Nothing
+  atomically $ writeTVar (serverWatcherThread state) Nothing
   return conn
 
 runFakeIO :: FakeState -> StateT FakeState IO a -> IO (a, FakeState)
