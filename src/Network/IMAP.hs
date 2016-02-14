@@ -133,7 +133,7 @@ sendCommand conn command = ifNotDisconnected conn $ do
 -- = Connected state commands
 
 -- |Upgrade a connection to a TLS connection from an insecure one. Accepts TLS settings
---  you with your connection to use
+--  you wish your connection to use
 startTLS :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
   TLSSettings -> m CommandResult
 startTLS conn tls = do
