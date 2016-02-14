@@ -2,7 +2,7 @@
 -- see http://haskell.org/cabal/users-guide/
 
 name:                imap
-version:             0.1.0.1
+version:             0.1.0.2
 synopsis:            An efficient IMAP client library, with SSL and streaming
 license:             BSD3
 license-file:        LICENSE
@@ -54,7 +54,7 @@ description:
   >   simpleFormat $ select conn "inbox"
   >    Right [Flags [FAnswered,FFlagged,FDraft,FDeleted,FSeen,FOther "$NotPhishing",FOther "$Phishing",FOther "NonJunk"],PermanentFlags [FAnswered,FFlagged,FDraft,FDeleted,FSeen,FOther "$NotPhishing",FOther "$Phishing",FOther "NonJunk",FAny],UIDValidity 1,Exists 65,Recent 0,UIDNext 1050,HighestModSeq 251971]
   .
-  Again you can use the metadata if you wish to. Let's see what messages we have ([consult the RFC](https://tools.ietf.org/html/rfc3501#section-6.4.4) if you're unsure about the parameter to `uidSearch`):
+  Again you can use the metadata if you wish to. Let's see what messages we have (<https://tools.ietf.org/html/rfc3501#section-6.4.4 consult the RFC> if you're unsure about the parameter to `uidSearch`):
   .
   >   simpleFormat $ uidSearch conn "ALL"
   >    Right [Search [105,219,411,424,425,748,763,770,774,819,824,825,..]]
