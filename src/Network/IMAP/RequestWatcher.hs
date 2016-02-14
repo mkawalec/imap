@@ -1,7 +1,6 @@
 module Network.IMAP.RequestWatcher (requestWatcher) where
 
 import Network.IMAP.Types
-import qualified Network.IMAP.Types
 import Network.IMAP.Parsers
 
 import Data.Either (isRight)
@@ -19,36 +18,70 @@ import qualified Data.Text as T
 
 import qualified Data.STM.RollingQueue as RQ
 import Control.Concurrent.STM.TQueue
+import Control.Concurrent.STM.TVar
+import Control.Concurrent (killThread)
 import Control.Monad.STM
 import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Exception (SomeException)
+import qualified Control.Monad.Catch as C
+import Control.Monad.Catch (MonadCatch)
 
 import System.Log.Logger (errorM)
 
 
-requestWatcher :: (MonadIO m, OverloadableConnection m) => IMAPConnection ->
-  [ResponseRequest] -> m ()
-requestWatcher conn knownReqs = do
+requestWatcher :: (MonadIO m, Universe m, MonadCatch m) => IMAPConnection -> m ()
+requestWatcher conn = flip C.catch (handleExceptions conn) $ do
+  parsedLine <- getParsedChunk (rawConnection . imapState $ conn) (AP.parse parseReply)
+
+  if isRight parsedLine
+    then reactToReply conn $ fromRight' parsedLine
+    else return ()
+
+  requestWatcher conn
+
+reactToReply :: (MonadIO m, Universe m, MonadCatch m) => IMAPConnection -> CommandResult -> m ()
+reactToReply conn parsedReply = do
   let state = imapState conn
+  requests <- liftIO . atomically $ do
+    newReqs <- getOutstandingReqs $ responseRequests state
+    knownReqs <- readTVar $ outstandingReqs state
+    return $ knownReqs ++ newReqs
 
-  parsedLine <- getParsedChunk (rawConnection state) (AP.parse parseLine)
-  newReqs <- liftIO . atomically $ getOutstandingReqs (responseRequests state)
-  let outstandingReqs = knownReqs ++ newReqs
+  updateConnState conn parsedReply
+  pendingReqs <- case parsedReply of
+    Tagged t -> dispatchTagged requests t
+    Untagged u -> dispatchUntagged conn requests u
 
-  nOutReqs <- if isRight parsedLine
-                then do
-                  let parsed = fromRight' parsedLine
+  liftIO . atomically $ writeTVar (outstandingReqs state) pendingReqs
 
-                  case parsed of
-                    Tagged t -> dispatchTagged outstandingReqs t
-                    Untagged u -> dispatchUntagged conn outstandingReqs u
-                else return outstandingReqs
-  requestWatcher conn nOutReqs
+  shouldIDie conn
 
-dispatchTagged :: (MonadIO m, OverloadableConnection m) => [ResponseRequest] ->
+updateConnState :: (MonadIO m, Universe m) => IMAPConnection -> CommandResult -> m ()
+updateConnState conn command = do
+  let connState = connectionState conn
+
+  case command of
+    Untagged u -> case u of
+                    OKResult _ -> liftIO . atomically $ writeTVar connState Connected
+                    Bye -> liftIO . atomically $ writeTVar connState Disconnected
+
+                    _ -> return ()
+    _ -> return ()
+
+shouldIDie :: (MonadIO m, Universe m) => IMAPConnection -> m ()
+shouldIDie conn = liftIO $ do
+  threadId <- atomically . readTVar . serverWatcherThread . imapState $ conn
+  connState <- atomically . readTVar $ connectionState conn
+
+  if isDisconnected connState && isJust threadId
+    then killThread $ fromJust threadId
+    else return ()
+
+dispatchTagged :: (MonadIO m, Universe m) => [ResponseRequest] ->
   TaggedResult -> m [ResponseRequest]
-dispatchTagged outstandingReqs response = do
+dispatchTagged requests response = do
   let reqId = commandId response
-  let pendingRequest = L.find (\r -> respRequestId r == reqId) outstandingReqs
+  let pendingRequest = L.find (\r -> respRequestId r == reqId) requests
 
   if isJust pendingRequest
     then liftIO . atomically $ do
@@ -56,20 +89,20 @@ dispatchTagged outstandingReqs response = do
     else liftIO $ errorM "RequestWatcher" "Received a reply for an unknown request"
 
   return $ if isJust pendingRequest
-            then filter (/= fromJust pendingRequest) outstandingReqs
-            else outstandingReqs
+            then filter (/= fromJust pendingRequest) requests
+            else requests
 
-dispatchUntagged :: (MonadIO m, OverloadableConnection m) => IMAPConnection ->
+dispatchUntagged :: (MonadIO m, Universe m) => IMAPConnection ->
                     [ResponseRequest] ->
                     UntaggedResult ->
                     m [ResponseRequest]
-dispatchUntagged conn outstandingReqs response = do
-  if null outstandingReqs
+dispatchUntagged conn requests response = do
+  if null requests
     then liftIO . atomically $ RQ.write (untaggedQueue conn) response
     else liftIO . atomically $ do
-      let responseQ = responseQueue . head $ outstandingReqs
+      let responseQ = responseQueue . head $ requests
       writeTQueue responseQ $ Untagged response
-  return outstandingReqs
+  return requests
 
 getOutstandingReqs :: TQueue ResponseRequest ->
                       STM [ResponseRequest]
@@ -96,12 +129,44 @@ parseChunk parser chunk =
       Partial continuation -> ((Nothing, Just continuation), BS.empty)
       Done left result -> ((Just result, Nothing), left)
 
-getParsedChunk :: (MonadIO m, OverloadableConnection m) => Connection ->
+getParsedChunk :: (MonadIO m, Universe m) => Connection ->
                   (BSC.ByteString -> Result ParseResult) ->
                   m ParseResult
 getParsedChunk conn parser = do
-  (parsed, cont) <- Network.IMAP.Types.connectionGetChunk' conn $ parseChunk parser
+  (parsed, cont) <- connectionGetChunk'' conn $ parseChunk parser
 
   if isJust cont
     then getParsedChunk conn $ fromJust cont
     else return . fromJust $ parsed
+
+-- |Reject all outstanding requests with the exception handler, close the watcher
+handleExceptions :: (MonadIO m, Universe m, MonadCatch m) => IMAPConnection ->
+                                               SomeException ->
+                                               m ()
+handleExceptions conn e = do
+  let state = imapState conn
+
+  threadId <- liftIO . atomically $ do
+    writeTVar (connectionState conn) Disconnected
+    let actualThreadId = readTVar $ serverWatcherThread state
+    writeTVar (serverWatcherThread state) Nothing
+    actualThreadId
+
+  requests <- liftIO . atomically $ do
+    newReqs <- getOutstandingReqs $ responseRequests state
+    knownReqs <- readTVar $ outstandingReqs state
+    return $ knownReqs ++ newReqs
+
+  let reply = TaggedResult {
+    commandId = "noid",
+    resultState = BAD,
+    resultRest = BSC.append "Exception caught " (BSC.pack . show $ e)
+  }
+  liftIO . atomically $ mapM_ (sendResponse reply) requests
+
+  if isJust threadId
+   then liftIO . killThread $ fromJust threadId
+   else return ()
+
+sendResponse :: TaggedResult -> ResponseRequest -> STM ()
+sendResponse response request = writeTQueue (responseQueue request) $ Tagged response

@@ -1,6 +1,6 @@
 module Main where
 
-import System.Exit (exitFailure)
+import Test.Utils (getConn)
 import qualified Network.IMAP.Tests
 import Test.Tasty (defaultMain, testGroup)
 

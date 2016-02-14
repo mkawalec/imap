@@ -1,16 +1,19 @@
 module Network.IMAP.Parsers where
 
 import Network.IMAP.Types
+import Network.IMAP.Parsers.Fetch
+import Network.IMAP.Parsers.Utils
+import Network.IMAP.Parsers.Untagged
+
 
 import Data.Attoparsec.ByteString
 import qualified Data.Attoparsec.ByteString as AP
 import Data.Word8
-import qualified Data.Text as T
-import Data.Text.Encoding (decodeUtf8)
-import qualified Data.ByteString.Char8 as BSC
 
 import Control.Applicative
-import Control.Monad (mzero)
+
+parseReply :: Parser (Either ErrorMessage CommandResult)
+parseReply = parseFetch <|> parseLine
 
 parseLine :: Parser (Either ErrorMessage CommandResult)
 parseLine = do
@@ -40,82 +43,21 @@ parseUntagged = do
   string "* "
   result <- parseFlags <|>
             parseExists <|>
+            parseHighestModSeq <|>
             parseRecent <|>
             parseUnseen <|>
             (Right <$> parsePermanentFlags) <|>
             parseUidNext <|>
-            parseUidValidity
+            parseUidValidity <|>
+            parseCapabilityList <|>
+            (Right <$> parseOk) <|>
+            (Right <$> parseBye) <|>
+            (Right <$> parseListLikeResp "LIST") <|>
+            (Right <$> parseListLikeResp "LSUB") <|>
+            parseStatus <|>
+            parseExpunge <|>
+            parseSearchResult
 
   -- Take the rest
   _ <- AP.takeWhile (/= _cr)
   return $ result >>= Right . Untagged
-
-parseFlag :: Parser Flag
-parseFlag = do
-  word8 _backslash
-  flagName <- takeWhile1 isLetter
-  case flagName of
-            "Seen" -> return FSeen
-            "Answered" -> return FAnswered
-            "Flagged" -> return FFlagged
-            "Deleted" -> return FDeleted
-            "Draft" -> return FDraft
-            "Recent" -> return FRecent
-            "*" -> return FAny
-            _ -> mzero
-
-parseWeirdFlag :: Parser Flag
-parseWeirdFlag = do
-  flagText <- AP.takeWhile1 (\c -> isLetter c || c == _dollar)
-  return . FOther . decodeUtf8 $ flagText
-
-parseFlagList :: Parser [Flag]
-parseFlagList = word8 _parenleft *>
-                (parseFlag <|> parseWeirdFlag) `sepBy` word8 _space
-                <* word8 _parenright
-
-parseFlags :: Parser (Either ErrorMessage UntaggedResult)
-parseFlags = Right . Flags <$> (string "FLAGS " *> parseFlagList)
-
-parseNumber :: (Int -> UntaggedResult) -> BSC.ByteString -> BSC.ByteString -> Parser (Either ErrorMessage UntaggedResult)
-parseNumber constructor prefix postfix = do
-  if not . BSC.null $ prefix
-    then string prefix <* word8 _space
-    else return BSC.empty
-  count <- takeWhile1 isDigit
-  if not . BSC.null $ postfix
-    then word8 _space *> string postfix
-    else return BSC.empty
-
-  return $ toInt count >>= return . constructor
-
-parseExists :: Parser (Either ErrorMessage UntaggedResult)
-parseExists = parseNumber Exists "" "EXISTS"
-
-parseRecent :: Parser (Either ErrorMessage UntaggedResult)
-parseRecent = parseNumber Recent "" "RECENT"
-
-parseOkResp :: Parser a -> Parser a
-parseOkResp innerParser = string "OK [" *> innerParser <* string "]"
-
-parseUnseen :: Parser (Either ErrorMessage UntaggedResult)
-parseUnseen = parseOkResp $
-  (\x -> toInt x >>= Right . Unseen) <$>
-  (string "UNSEEN " *> takeWhile1 isDigit)
-
-parsePermanentFlags :: Parser UntaggedResult
-parsePermanentFlags = parseOkResp $
-  PermanentFlags <$> (string "PERMANENTFLAGS " *> parseFlagList)
-
-parseUidNext :: Parser (Either ErrorMessage UntaggedResult)
-parseUidNext = parseOkResp $ parseNumber UIDNext "UIDNEXT" ""
-
-parseUidValidity :: Parser (Either ErrorMessage UntaggedResult)
-parseUidValidity = parseOkResp $ parseNumber UIDNext "UIDVALIDITY" ""
-
-toInt :: BSC.ByteString -> Either ErrorMessage Int
-toInt bs = if null parsed
-    then Left errorMsg
-    else Right . fst . head $ parsed
-  where parsed = reads $ BSC.unpack bs
-        errorMsg = T.concat ["Count not parse '", decodeUtf8 bs, "' as an integer"]
