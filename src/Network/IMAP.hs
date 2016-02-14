@@ -71,7 +71,7 @@ import Network.IMAP.Types
 import Network.IMAP.RequestWatcher
 import Network.IMAP.Utils
 
-import Control.Monad (MonadPlus(..))
+import Control.Monad (MonadPlus(..), when)
 import Control.Monad.IO.Class (MonadIO(..))
 import ListT (toList, ListT)
 import qualified Data.List as L
@@ -141,8 +141,8 @@ startTLS conn tls = do
   let state = imapState conn
 
   case res of
-    Tagged (TaggedResult _ resState _) -> if resState == OK
-      then do
+    Tagged (TaggedResult _ resState _) -> when (resState == OK) $
+      do
         threadId <- liftIO . atomically . readTVar $ serverWatcherThread state
         liftIO . killThread . fromJust $ threadId
         liftIO $ connectionSetSecure (connectionContext state) (rawConnection state) tls
@@ -151,7 +151,6 @@ startTLS conn tls = do
         liftIO . atomically $ do
           writeTVar (serverWatcherThread state) $ Just watcherThreadId
           writeTVar (connectionState conn) Connected
-      else return ()
     _ -> return ()
 
   return res
@@ -196,7 +195,7 @@ authenticate conn method authAction = do
   watcherThreadId <- liftIO . forkIO $ requestWatcher conn
   liftIO . atomically $ do
     writeTVar (serverWatcherThread state) $ Just watcherThreadId
-    writeTVar (connectionState conn) $ Connected
+    writeTVar (connectionState conn) Connected
 
   return ()
 

@@ -25,6 +25,8 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Exception (SomeException)
 import qualified Control.Monad.Catch as C
 import Control.Monad.Catch (MonadCatch)
+import Control.Monad (when)
+import Data.Foldable (forM_)
 
 import System.Log.Logger (errorM)
 
@@ -33,9 +35,7 @@ requestWatcher :: (MonadIO m, Universe m, MonadCatch m) => IMAPConnection -> m (
 requestWatcher conn = flip C.catch (handleExceptions conn) $ do
   parsedLine <- getParsedChunk (rawConnection . imapState $ conn) (AP.parse parseReply)
 
-  if isRight parsedLine
-    then reactToReply conn $ fromRight' parsedLine
-    else return ()
+  when (isRight parsedLine) $ reactToReply conn $ fromRight' parsedLine
 
   requestWatcher conn
 
@@ -73,9 +73,8 @@ shouldIDie conn = liftIO $ do
   threadId <- atomically . readTVar . serverWatcherThread . imapState $ conn
   connState <- atomically . readTVar $ connectionState conn
 
-  if isDisconnected connState && isJust threadId
-    then killThread $ fromJust threadId
-    else return ()
+  when (isDisconnected connState && isJust threadId) $
+    killThread $ fromJust threadId
 
 dispatchTagged :: (MonadIO m, Universe m) => [ResponseRequest] ->
   TaggedResult -> m [ResponseRequest]
@@ -84,7 +83,7 @@ dispatchTagged requests response = do
   let pendingRequest = L.find (\r -> respRequestId r == reqId) requests
 
   if isJust pendingRequest
-    then liftIO . atomically $ do
+    then liftIO . atomically $
       writeTQueue (responseQueue . fromJust $ pendingRequest) $ Tagged response
     else liftIO $ errorM "RequestWatcher" "Received a reply for an unknown request"
 
@@ -164,9 +163,7 @@ handleExceptions conn e = do
   }
   liftIO . atomically $ mapM_ (sendResponse reply) requests
 
-  if isJust threadId
-   then liftIO . killThread $ fromJust threadId
-   else return ()
+  forM_ threadId $ liftIO . killThread
 
 sendResponse :: TaggedResult -> ResponseRequest -> STM ()
 sendResponse response request = writeTQueue (responseQueue request) $ Tagged response

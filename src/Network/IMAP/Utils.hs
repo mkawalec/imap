@@ -33,12 +33,12 @@ readResults resultsQueue = do
             resultRest="Connection timeout"
           }
           else retry
-      readResult = readTQueue $ resultsQueue
+      readResult = readTQueue resultsQueue
 
   nextResult <- liftIO . atomically $ d_wait `orElse` readResult
   case nextResult of
     Tagged _ -> return nextResult
-    Untagged _ -> (return nextResult) `mplus` readResults resultsQueue
+    Untagged _ -> return nextResult `mplus` readResults resultsQueue
 
 escapeText :: T.Text -> T.Text
 escapeText t = T.replace "{" "\\{" $

@@ -8,7 +8,7 @@ import Data.Attoparsec.ByteString
 import qualified Data.Attoparsec.ByteString as AP
 import Data.Word8
 import qualified Data.ByteString.Char8 as BSC
-import Data.Maybe (fromJust, isJust)
+import Data.Maybe (fromJust, isNothing)
 import Data.Either.Combinators (isRight, fromRight', fromLeft')
 
 import Control.Applicative
@@ -18,29 +18,29 @@ import Control.Monad (liftM)
 parseFetch :: Parser (Either ErrorMessage CommandResult)
 parseFetch = do
   string "* "
-  msgId <- (AP.takeWhile1 isDigit >>= return . toInt)
+  msgId <- liftM toInt $ AP.takeWhile1 isDigit
   let msgId' = msgId >>= Right . MessageId
   string " FETCH ("
 
   parsedFetch <- parseSpecifiers
 
-  let allInOneEither = mapM id $ msgId':parsedFetch
-  return $ allInOneEither >>= return . Untagged . Fetch
+  let allInOneEither = sequence $ msgId':parsedFetch
+  return $ liftM (Untagged . Fetch) allInOneEither
 
 parseSpecifiers :: Parser [Either ErrorMessage UntaggedResult]
 parseSpecifiers = do
   nextChar <- AP.peekWord8
-  if (not . isJust $ nextChar) || (fromJust nextChar == _cr)
+  if isNothing nextChar || (fromJust nextChar == _cr)
     then return []
     else do
-      nextRes <- ((Right <$> parseEnvelope) <|>
+      nextRes <- (Right <$> parseEnvelope) <|>
                   parseFlags <|>
                   (Right <$> parseInternalDate) <|>
                   parseNumber Size "RFC822.SIZE" "" <|>
                   ((string "BODY[" <|> string "RFC822.HEADER"
                    <|> string "RFC822.TEXT" <|> string "RFC822") *> parseBody) <|>
                   parseNumber UID "UID" "" <|>
-                  Right <$> parseBodyStructure)
+                  Right <$> parseBodyStructure
 
       (nextRes:) <$> (AP.anyWord8 *> parseSpecifiers)
 
