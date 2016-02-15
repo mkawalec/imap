@@ -76,16 +76,18 @@ import Control.Monad.IO.Class (MonadIO(..))
 import ListT (toList, ListT)
 import qualified Data.List as L
 import qualified Debug.Trace as DT
+import Data.Default (def)
 
 -- |Connects to the server and gives you a connection object
 --  that needs to be passed to any other command. You should only call it once
 --  for every connection you wish to create
-connectServer :: ConnectionParams -> IO IMAPConnection
-connectServer connParams = do
+connectServer :: ConnectionParams -> Maybe IMAPSettings -> IO IMAPConnection
+connectServer connParams wrappedSettings = do
   context <- initConnectionContext
   connection <- connectTo context connParams
+  let settings = if isJust wrappedSettings then fromJust wrappedSettings else def
 
-  untaggedRespsQueue <- RQ.newIO 20
+  untaggedRespsQueue <- RQ.newIO $ untaggedQueueLength settings
   responseRequestsQueue <- newTQueueIO
   connState <- newTVarIO UndefinedState
   watcherId <- newTVarIO Nothing
@@ -96,7 +98,8 @@ connectServer connParams = do
     connectionContext = context,
     responseRequests = responseRequestsQueue,
     serverWatcherThread = watcherId,
-    outstandingReqs = requests
+    outstandingReqs = requests,
+    imapSettings = settings
   }
 
   let conn = IMAPConnection {
@@ -127,7 +130,7 @@ sendCommand conn command = ifNotDisconnected conn $ do
   liftIO . atomically $ writeTQueue (responseRequests state) responseRequest
 
   connectionPut' (rawConnection state) commandLine
-  readResults (outstandingReqs state) responseRequest
+  readResults state responseRequest
 
 -- |
 -- = Connected state commands

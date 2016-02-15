@@ -23,9 +23,9 @@ You need a connection object first, so that you can execute commands on it. It's
 
     let tls = TLSSettingsSimple False False False
     let params = ConnectionParams "imap.gmail.com" 993 (Just tls) Nothing
-    conn <- connectServer params
+    conn <- connectServer params Nothing
 
-From now on you can run commands on this connection. We will use the `simpleFormat` helper function to convert from `ListT` to `IO`. Let's log in:
+From now on you can run commands on this connection. The second parameter to `connectServer` is `Maybe IMAPSettings`. If settings are not provided, sane defaults will be used. We will use the `simpleFormat` helper function to convert from `ListT` to `IO`. Let's log in:
 
     > simpleFormat $ login conn "mylogin" "mypass"
     Right [Capabilities [CIMAP4,CUnselect,CIdle,CNamespace,CQuota,CId,CExperimental "XLIST",CChildren,CExperimental "X-GM-EXT-1",CUIDPlus,CCompress "DEFLATE",CEnable,CMove,CCondstore,CEsearch,CUtf8 "ACCEPT",CListExtended,CListStatus,CAppendLimit 35882577]]

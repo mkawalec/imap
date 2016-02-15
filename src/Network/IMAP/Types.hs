@@ -12,6 +12,7 @@ import Network.Connection (Connection, ConnectionContext,
   connectionPut, connectionGetChunk')
 import ListT (ListT)
 import Control.Monad.IO.Class (liftIO)
+import Data.Default (Default, def)
 
 -- |A type alias used for an error message
 type ErrorMessage = T.Text
@@ -46,7 +47,9 @@ data IMAPState = IMAPState {
   -- |Id of the thread the watcher executes on
   serverWatcherThread :: TVar (Maybe ThreadId),
   -- |All the unfulfilled requests the watcher thread knows about
-  outstandingReqs :: TVar [ResponseRequest]
+  outstandingReqs :: TVar [ResponseRequest],
+  -- |Configuration settings
+  imapSettings :: IMAPSettings
 }
 
 data ResponseRequest = ResponseRequest {
@@ -56,6 +59,13 @@ data ResponseRequest = ResponseRequest {
   -- |Id of the request, which is the same as the id sent to the server.
   respRequestId :: CommandId
 } deriving (Eq)
+
+data IMAPSettings = IMAPSettings {
+  -- Number of seconds after which request timeouts
+  imapTimeout :: Int,
+  -- Length of a queue containing messages we weren't expecting
+  untaggedQueueLength :: Int
+}
 
 data EmailAddress = EmailAddress {
   emailLabel :: Maybe T.Text,
@@ -195,6 +205,9 @@ instance Universe IO where
 instance Universe (ListT IO) where
   connectionPut' c d = liftIO $ connectionPut c d
   connectionGetChunk'' c cont = liftIO $ connectionGetChunk' c cont
+
+instance Default IMAPSettings where
+  def = IMAPSettings 30 10
 
 $(derive makeIs ''Flag)
 $(derive makeIs ''UntaggedResult)

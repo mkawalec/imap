@@ -20,9 +20,12 @@ genRequestId = do
   return $ BSC.pack . Prelude.take 9 $ randomRs ('a', 'z') randomGen
 
 readResults :: (MonadPlus m, MonadIO m, Universe m) =>
-  TVar [ResponseRequest] -> ResponseRequest -> m CommandResult
-readResults reqs req@(ResponseRequest resultsQueue requestId) = do
-  delay <- liftIO . newDelay $ 10 * 1000000
+  IMAPState -> ResponseRequest -> m CommandResult
+readResults state req@(ResponseRequest resultsQueue requestId) = do
+  let timeout = imapTimeout . imapSettings $ state
+  let reqs = outstandingReqs state
+  
+  delay <- liftIO . newDelay $ timeout * 1000000
   let d_wait = do
         didComplete <- tryWaitDelay delay
         if didComplete
@@ -42,7 +45,7 @@ readResults reqs req@(ResponseRequest resultsQueue requestId) = do
   nextResult <- liftIO . atomically $ d_wait `orElse` readResult
   case nextResult of
     Tagged _ -> return nextResult
-    Untagged _ -> return nextResult `mplus` readResults reqs req
+    Untagged _ -> return nextResult `mplus` readResults state req
 
 escapeText :: T.Text -> T.Text
 escapeText t = T.replace "{" "\\{" $

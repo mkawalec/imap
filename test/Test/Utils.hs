@@ -84,7 +84,7 @@ getConn = do
   let tlsSettings = Just $ TLSSettingsSimple False False False
   let params = ConnectionParams "imap.gmail.com" 993 tlsSettings Nothing
 
-  conn <- connectServer params
+  conn <- connectServer params Nothing
   let state = imapState conn
   threadId <- atomically . readTVar $ serverWatcherThread state
   killThread . fromJust $ threadId
