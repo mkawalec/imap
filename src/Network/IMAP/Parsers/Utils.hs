@@ -80,7 +80,24 @@ parseListLikeResp prefix = do
   return $ ListR nameAttributes delimiter actualName
 
 isAtomChar :: Word8 -> Bool
-isAtomChar c = isLetter c || isNumber c || c == _hyphen || c == _quotedbl || c == _period
+isAtomChar c = isLetter c 
+            || isNumber c 
+            || c == _hyphen 
+            || c == _quotedbl 
+            || c == _period 
+            || c == _plus 
+            || c == _dollar
+            || c == _ampersand
+            || c == _quotesingle
+            || c == _comma
+            || c == _hyphen
+            || c == _period
+            || c == _slash
+            || (c >= 0x3a && c <= 0x3c)
+            || (c >= 0x3e && c <= 0x40)
+            || c == _backslash
+            || (c >= 0x5e && c <= 0x60)
+            || c == _tilde
 
 toInt :: BSC.ByteString -> Either ErrorMessage Int
 toInt bs = if null parsed
