@@ -2,7 +2,7 @@
 -- see http://haskell.org/cabal/users-guide/
 
 name:                imap
-version:             0.2.0.0
+version:             0.2.0.1
 synopsis:            An efficient IMAP client library, with SSL and streaming
 license:             BSD3
 license-file:        LICENSE
@@ -97,6 +97,9 @@ library
   exposed-modules:
     Network.IMAP
     Network.IMAP.Parsers
+    Network.IMAP.Parsers.Fetch
+    Network.IMAP.Parsers.Untagged
+    Network.IMAP.Parsers.Utils
     Network.IMAP.RequestWatcher
     Network.IMAP.Types
     Network.IMAP.Utils
