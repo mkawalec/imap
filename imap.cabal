@@ -2,7 +2,7 @@
 -- see http://haskell.org/cabal/users-guide/
 
 name:                imap
-version:             0.2.0.1
+version:             0.2.0.2
 synopsis:            An efficient IMAP client library, with SSL and streaming
 license:             BSD3
 license-file:        LICENSE
@@ -34,6 +34,7 @@ description:
   .
   > import Network.Connection
   > import Network.IMAP
+  > import Network.IMAP.Types
   .
   > let tls = TLSSettingsSimple False False False
   > let params = ConnectionParams "imap.gmail.com" 993 (Just tls) Nothing

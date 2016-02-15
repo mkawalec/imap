@@ -20,6 +20,7 @@ You need a connection object first, so that you can execute commands on it. It's
 
     import Network.Connection
     import Network.IMAP
+    import Network.IMAP.Types
 
     let tls = TLSSettingsSimple False False False
     let params = ConnectionParams "imap.gmail.com" 993 (Just tls) Nothing
