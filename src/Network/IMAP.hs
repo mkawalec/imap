@@ -127,7 +127,7 @@ sendCommand conn command = ifNotDisconnected conn $ do
   liftIO . atomically $ writeTQueue (responseRequests state) responseRequest
 
   connectionPut' (rawConnection state) commandLine
-  readResults responseQ
+  readResults (outstandingReqs state) responseRequest
 
 -- |
 -- = Connected state commands

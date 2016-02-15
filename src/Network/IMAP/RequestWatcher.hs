@@ -53,7 +53,6 @@ reactToReply conn parsedReply = do
     Untagged u -> dispatchUntagged conn requests u
 
   liftIO . atomically $ writeTVar (outstandingReqs state) pendingReqs
-
   shouldIDie conn
 
 updateConnState :: (MonadIO m, Universe m) => IMAPConnection -> CommandResult -> m ()

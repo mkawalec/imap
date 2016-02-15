@@ -20,25 +20,29 @@ genRequestId = do
   return $ BSC.pack . Prelude.take 9 $ randomRs ('a', 'z') randomGen
 
 readResults :: (MonadPlus m, MonadIO m, Universe m) =>
-               TQueue CommandResult ->
-               m CommandResult
-readResults resultsQueue = do
+  TVar [ResponseRequest] -> ResponseRequest -> m CommandResult
+readResults reqs req@(ResponseRequest resultsQueue requestId) = do
   delay <- liftIO . newDelay $ 10 * 1000000
   let d_wait = do
         didComplete <- tryWaitDelay delay
         if didComplete
-          then return . Tagged $ TaggedResult {
-            commandId="noid",
-            resultState=BAD,
-            resultRest="Connection timeout"
-          }
+          then do
+            -- Remove current request from the list of outstanding ones
+            allReqs <- readTVar reqs
+            writeTVar reqs $ filter (/=req) allReqs
+
+            return . Tagged $ TaggedResult {
+              commandId=requestId,
+              resultState=BAD,
+              resultRest="Connection timeout"
+            }
           else retry
       readResult = readTQueue resultsQueue
 
   nextResult <- liftIO . atomically $ d_wait `orElse` readResult
   case nextResult of
     Tagged _ -> return nextResult
-    Untagged _ -> return nextResult `mplus` readResults resultsQueue
+    Untagged _ -> return nextResult `mplus` readResults reqs req
 
 escapeText :: T.Text -> T.Text
 escapeText t = T.replace "{" "\\{" $
