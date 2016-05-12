@@ -13,6 +13,7 @@ import Network.Connection (Connection, ConnectionContext,
 import ListT (ListT)
 import Control.Monad.IO.Class (liftIO)
 import Data.Default (Default, def)
+import qualified Pipes as P
 
 -- |A type alias used for an error message
 type ErrorMessage = T.Text
@@ -203,6 +204,10 @@ instance Universe IO where
   connectionGetChunk'' = connectionGetChunk'
 
 instance Universe (ListT IO) where
+  connectionPut' c d = liftIO $ connectionPut c d
+  connectionGetChunk'' c cont = liftIO $ connectionGetChunk' c cont
+
+instance Universe (P.ListT IO) where
   connectionPut' c d = liftIO $ connectionPut c d
   connectionGetChunk'' c cont = liftIO $ connectionGetChunk' c cont
 
