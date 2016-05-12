@@ -51,13 +51,14 @@ testConnectionPut _ input = do
 testConnectionGetChunk :: Connection -> (BS.ByteString -> (a, BS.ByteString)) -> S.StateT FakeState IO a
 testConnectionGetChunk c proc = do
   st <- S.get
-  toRead <- liftIO . atomically . readTVar . bytesToRead $ st
-  if (BS.length toRead) == 0
-    then (lift $ threadDelay 1000) >> testConnectionGetChunk c proc
-    else do
-      let (result, left) = proc toRead
-      liftIO . atomically $ writeTVar (bytesToRead st) left
-      return result
+  toRead <- liftIO . atomically $ do
+    bytes <- readTVar . bytesToRead $ st
+    if (BS.length bytes) == 0 then retry else return bytes
+
+  lift $ threadDelay 10000
+  let (result, left) = proc toRead
+  liftIO . atomically $ writeTVar (bytesToRead st) left
+  return result
 
 
 instance {-# OVERLAPPING #-} Universe (S.StateT FakeState IO) where
