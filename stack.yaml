@@ -3,8 +3,8 @@ extra-package-dbs: []
 packages:
 - '.'
 extra-deps:
-- QuickCheck-2.8.2
+- data-default-0.6.0
 - monadIO-0.10.1.4
 - rolling-queue-0.1
 - text-1.2.2.0
-resolver: lts-5.0
+resolver: lts-6.6
