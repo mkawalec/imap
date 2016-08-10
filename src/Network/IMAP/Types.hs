@@ -125,7 +125,7 @@ data ResultState = OK | NO | BAD deriving (Show, Eq)
 -- |Untagged replies are the actual data returned in response to the commands.
 data UntaggedResult = Flags [Flag] -- ^ A list of flags a mailbox has
                     | Exists Int -- ^ How many messages exist in a mailbox
-                    | Expunge Int -- ^ How many messages are expunged
+                    | Expunge Int -- ^ Sequence id of a deleted message
                     | Bye -- ^ Returned by the server when it cleanly disconnects
                     | HighestModSeq Int
                     | Recent Int -- ^ Number of recent messages
