@@ -122,7 +122,8 @@ library
                         derive == 2.5.*,
                         stm-delay == 0.1.*,
                         exceptions == 0.8.*,
-                        pipes == 4.1.*
+                        pipes == 4.1.*,
+                        containers == 0.5.*
   hs-source-dirs:       src
   default-language:     Haskell2010
   default-extensions:   OverloadedStrings,
@@ -157,6 +158,7 @@ Test-Suite imap-test
                         stm-delay == 0.1.*,
                         exceptions == 0.8.*,
                         pipes == 4.1.*,
+                        containers == 0.5.*,
 
                         tasty == 0.11.*,
                         HUnit == 1.3.*,

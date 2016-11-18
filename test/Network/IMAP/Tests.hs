@@ -6,10 +6,20 @@ import Test.Utils
 
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase)
+import Test.Tasty.QuickCheck (testProperty)
 import Test.HUnit (Assertion, (@?=), assertFailure)
 import qualified Debug.Trace as DT
 import qualified Data.List as L
 import Data.Maybe (isJust, fromJust)
+
+import qualified Data.ByteString.Char8 as B
+import qualified Network.IMAP.Parsers.Untagged as U
+import qualified Data.Text.Encoding as T
+import qualified Data.Attoparsec.ByteString.Char8 as A
+import Data.Either.Combinators (fromRight', isLeft)
+import Test.QuickCheck
+import qualified Data.List as L
+import Control.Monad (liftM)
 
 lastIsTagged :: [CommandResult] -> (TaggedResult -> Assertion) -> Assertion
 lastIsTagged responses testAction =
@@ -98,15 +108,58 @@ testPermFlags = do
     (isJust $ L.find (=="NonJunk") otherFlags) @?= True
     (isJust $ L.find (=="$Phishing") otherFlags) @?= True
 
+newtype TestFlagList = TestFlagList B.ByteString deriving (Eq, Show)
+newtype Atom = Atom B.ByteString deriving (Eq, Show)
+newtype AtomChar = AtomChar Char deriving (Eq, Show)
+
+atomSpecials :: String
+atomSpecials = "(){ %*\\\n\r]\0"
+availableFlags = ["Answered", "Flagged", "Deleted", "Seen", "Draft"]
+
+instance Arbitrary AtomChar where
+  arbitrary = do
+    ch <- arbitrary
+    if L.any (\c -> c == ch) atomSpecials
+      then arbitrary
+      else return $ AtomChar ch
+
+instance Arbitrary Atom where
+  arbitrary = do
+    chars <- map (\(AtomChar c) -> c) `liftM` mapM (\_ -> arbitrary) [1..10]
+    return . Atom $ B.pack chars
+
+instance Arbitrary TestFlagList where
+  arbitrary = do
+    flags <- map (\(Atom a) -> B.append "\\" a) `liftM` mapM (\_ -> arbitrary) [1..10]
+    return . TestFlagList . B.concat $ ["(", (B.intercalate " " flags), ")"]
+
+unparseFlags :: [Flag] -> B.ByteString
+unparseFlags parsedFlags = B.concat $ ["(", (B.intercalate " " unparsedFlags), ")"]
+  where unparsedFlags = map (unparseFlag) parsedFlags
+        unparseFlag FSeen = "\\Seen"
+        unparseFlag FAnswered = "\\Answered"
+        unparseFlag FFlagged = "\\Flagged"
+        unparseFlag FDeleted = "\\Deleted"
+        unparseFlag FDraft = "\\Draft"
+        unparseFlag FRecent = "\\Recent"
+        unparseFlag FAny = "\\*"
+        unparseFlag (FOther f) = T.encodeUtf8 f
+
+testFlagParsing :: TestFlagList -> Bool
+testFlagParsing (TestFlagList flagList) = if isLeft parsedAndUnparsed
+    then False
+    else fromRight' parsedAndUnparsed == flagList
+  where parsedAndUnparsed = A.parseOnly U.parseFlagList flagList >>= Right . unparseFlags
 
 tests :: TestTree
 tests = testGroup "Network.IMAP" [
-  testCase "Login Failure" testLoginFailure,
-  testCase "Login Success" testLoginSuccess,
-  testCase "Check flags reply" testFlags,
-  testCase "Check EXISTS" testExists,
-  testCase "Check RECENT" testRecent,
-  testCase "Check UNSEEN" testUnseen,
-  testCase "Check UIDNEXT" testUIDNext,
-  testCase "Check PERMANENTFLAGS" testPermFlags
+    testCase "Login Failure" testLoginFailure
+  , testCase "Login Success" testLoginSuccess
+  , testCase "Check flags reply" testFlags
+  , testCase "Check EXISTS" testExists
+  , testCase "Check RECENT" testRecent
+  , testCase "Check UNSEEN" testUnseen
+  , testCase "Check UIDNEXT" testUIDNext
+  , testCase "Check PERMANENTFLAGS" testPermFlags
+  , testProperty "Check flag parsing" testFlagParsing
   ]

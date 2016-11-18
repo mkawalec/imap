@@ -3,9 +3,8 @@ module Network.IMAP.Parsers.Untagged where
 import Network.IMAP.Types
 import Network.IMAP.Parsers.Utils
 
-import Data.Attoparsec.ByteString
-import qualified Data.Attoparsec.ByteString as AP
-import Data.Word8
+import Data.Attoparsec.ByteString.Char8
+import qualified Data.Attoparsec.ByteString.Char8 as AP
 import qualified Data.Text as T
 import qualified Data.Text.Read as TR
 import Data.Text.Encoding (decodeUtf8)
@@ -17,13 +16,13 @@ import Control.Monad (mzero, liftM, (>=>))
 parseOk :: Parser UntaggedResult
 parseOk = do
   string "OK "
-  contents <- AP.takeWhile (/= _cr)
+  contents <- AP.takeWhile (/= '\r')
   return . OKResult . decodeUtf8 $ contents
 
 parseFlag :: Parser Flag
 parseFlag = do
-  word8 _backslash
-  flagName <- takeWhile1 (\c -> isLetter c || c == _asterisk)
+  char '\\'
+  flagName <- takeWhile1 isAtomChar
   case flagName of
             "Seen" -> return FSeen
             "Answered" -> return FAnswered
@@ -34,15 +33,15 @@ parseFlag = do
             "*" -> return FAny
             _ -> mzero
 
-parseWeirdFlag :: Parser Flag
-parseWeirdFlag = do
-  flagText <- AP.takeWhile1 (\c -> isLetter c || c == _dollar)
+parseFlagKeyword :: Parser Flag
+parseFlagKeyword = do
+  flagText <- AP.takeWhile1 isAtomChar
   return . FOther . decodeUtf8 $ flagText
 
 parseFlagList :: Parser [Flag]
-parseFlagList = word8 _parenleft *>
-                (parseFlag <|> parseWeirdFlag) `sepBy` word8 _space
-                <* word8 _parenright
+parseFlagList = char '(' *>
+                (parseFlag <|> parseFlagKeyword) `sepBy` char ' '
+                <* char ')'
 
 parseFlags :: Parser (Either ErrorMessage UntaggedResult)
 parseFlags = Right . Flags <$> (string "FLAGS " *> parseFlagList)
@@ -51,7 +50,7 @@ parseExists :: Parser (Either ErrorMessage UntaggedResult)
 parseExists = parseNumber Exists "" "EXISTS"
 
 parseBye :: Parser UntaggedResult
-parseBye = string "BYE" *> AP.takeWhile (/= _cr) *> return Bye
+parseBye = string "BYE" *> AP.takeWhile (/= '\r') *> return Bye
 
 parseRecent :: Parser (Either ErrorMessage UntaggedResult)
 parseRecent = parseNumber Recent "" "RECENT"
@@ -79,9 +78,9 @@ parseHighestModSeq = parseOkResp $ parseNumber HighestModSeq "HIGHESTMODSEQ" ""
 
 parseStatusItem :: Parser (Either ErrorMessage UntaggedResult)
 parseStatusItem = do
-  anyWord8
+  anyChar
   itemName <- liftM decodeUtf8 $ AP.takeWhile1 isAtomChar
-  string " "
+  char ' '
   value <- liftM decodeUtf8 $ AP.takeWhile1 isDigit
 
   let decodingError = T.concat ["Error decoding '", value, "' as integer"]
@@ -100,8 +99,8 @@ parseStatus = do
   string "STATUS "
   mailboxName <- liftM decodeUtf8 $ AP.takeWhile1 isAtomChar
 
-  string " "
-  statuses <- parseStatusItem `manyTill` string ")"
+  char ' '
+  statuses <- parseStatusItem `manyTill` char ')'
   let formattedStatuses = sequence statuses
 
   return $ liftM (StatusR mailboxName) formattedStatuses
@@ -109,13 +108,13 @@ parseStatus = do
 parseCapabilityList :: Parser (Either ErrorMessage UntaggedResult)
 parseCapabilityList = do
   string "CAPABILITY "
-  caps <- (parseCapabilityWithValue <|> parseNamedCapability) `sepBy` word8 _space
+  caps <- (parseCapabilityWithValue <|> parseNamedCapability) `sepBy` char ' '
   return . mapRight Capabilities $ sequence caps
 
 parseCapabilityWithValue :: Parser (Either ErrorMessage Capability)
 parseCapabilityWithValue = do
   name <- liftM decodeUtf8 (AP.takeWhile1 isAtomChar)
-  word8 _equal
+  char '='
   value <- AP.takeWhile1 isAtomChar
 
   let decodedValue = decodeUtf8 value
@@ -163,6 +162,6 @@ parseExpunge = do
 parseSearchResult :: Parser (Either ErrorMessage UntaggedResult)
 parseSearchResult = do
   string "SEARCH "
-  msgIds <- AP.takeWhile1 isDigit `sepBy` word8 _space
+  msgIds <- AP.takeWhile1 isDigit `sepBy` char ' '
   let parsedIds = mapM toInt msgIds
   return $ liftM Search parsedIds
