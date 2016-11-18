@@ -12,7 +12,6 @@ import Network.Connection (Connection, ConnectionContext,
   connectionPut, connectionGetChunk')
 import ListT (ListT)
 import Control.Monad.IO.Class (liftIO)
-import Data.Default (Default, def)
 import qualified Pipes as P
 
 -- |A type alias used for an error message
@@ -211,8 +210,7 @@ instance Universe (P.ListT IO) where
   connectionPut' c d = liftIO $ connectionPut c d
   connectionGetChunk'' c cont = liftIO $ connectionGetChunk' c cont
 
-instance Default IMAPSettings where
-  def = IMAPSettings 30 10
+defaultImapSettings = IMAPSettings 30 10
 
 $(derive makeIs ''Flag)
 $(derive makeIs ''UntaggedResult)

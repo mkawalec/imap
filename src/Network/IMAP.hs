@@ -76,7 +76,6 @@ import Control.Monad.IO.Class (MonadIO(..))
 import ListT (toList, ListT)
 import qualified Data.List as L
 import qualified Debug.Trace as DT
-import Data.Default (def)
 
 -- |Connects to the server and gives you a connection object
 --  that needs to be passed to any other command. You should only call it once
@@ -85,7 +84,7 @@ connectServer :: ConnectionParams -> Maybe IMAPSettings -> IO IMAPConnection
 connectServer connParams wrappedSettings = do
   context <- initConnectionContext
   connection <- connectTo context connParams
-  let settings = if isJust wrappedSettings then fromJust wrappedSettings else def
+  let settings = if isJust wrappedSettings then fromJust wrappedSettings else defaultImapSettings
 
   untaggedRespsQueue <- RQ.newIO $ untaggedQueueLength settings
   responseRequestsQueue <- newTQueueIO
