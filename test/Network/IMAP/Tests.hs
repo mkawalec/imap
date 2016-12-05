@@ -21,7 +21,7 @@ import Data.Either.Combinators (fromRight', isLeft)
 import Test.QuickCheck
 import qualified Data.List as L
 import Control.Monad (liftM)
-import Data.Char (ord)
+import Data.Char (ord, chr)
 
 lastIsTagged :: [CommandResult] -> (TaggedResult -> Assertion) -> Assertion
 lastIsTagged responses testAction =
@@ -120,19 +120,21 @@ availableFlags = ["Answered", "Flagged", "Deleted", "Seen", "Draft"]
 
 instance Arbitrary AtomChar where
   arbitrary = do
-    ch <- arbitrary
-    if (L.any (\c -> c == ch) atomSpecials) || ord ch > 127
+    ch :: Char <- chr <$> choose (0,127)
+    if L.any (\c -> c == ch) atomSpecials
       then arbitrary
       else return $ AtomChar ch
 
 instance Arbitrary Atom where
   arbitrary = do
-    chars <- map (\(AtomChar c) -> c) `liftM` mapM (\_ -> arbitrary) [1..10]
+    howManyLetters :: Int <- choose (1,25)
+    chars <- map (\(AtomChar c) -> c) `liftM` mapM (\_ -> arbitrary) [1..howManyLetters]
     return . Atom $ B.pack chars
 
 instance Arbitrary TestFlagList where
   arbitrary = do
-    flags <- map (\(Atom a) -> B.append "\\" a) `liftM` mapM (\_ -> arbitrary) [1..10]
+    howManyFlags :: Int <- choose (1,25)
+    flags <- map (\(Atom a) -> B.append "\\" a) `liftM` mapM (\_ -> arbitrary) [1..howManyFlags]
     return . TestFlagList . B.concat $ ["(", (B.intercalate " " flags), ")"]
 
 unparseFlags :: [Flag] -> B.ByteString
