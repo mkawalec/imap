@@ -3,10 +3,16 @@ module Test.Utils where
 import Control.Concurrent.STM.TVar
 import Control.Monad.STM
 import Network.Connection
+import Network.Socket
+import Network.Socket.ByteString
 import Control.Monad.Trans.Class
+import GHC.Conc (threadStatus)
 
 import qualified Data.ByteString as BS
 import Control.Monad.State.Strict as S
+
+import Control.Concurrent.MVar
+import Control.Exception (catch, AsyncException, SomeException, throw)
 
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Data.Text as T
@@ -18,6 +24,7 @@ import Network.IMAP (connectServer)
 import Control.Concurrent.MonadIO (fork, HasFork, fork, killThread)
 import Control.Concurrent (forkIO)
 import Data.Maybe (fromJust)
+import Control.Monad (void)
 import ListT (toList)
 
 data FakeState = FS {
@@ -80,10 +87,40 @@ runFakeIOWithReply conn prefix reply action = do
   defState <- def
   runFakeIO defState {reactToInput = respond prefix reply} $ withWatcher conn $ action
 
+data WaitFlag = WaitFlag
+
+mockServer :: Integer -> MVar WaitFlag -> MVar WaitFlag -> IO ()
+mockServer port waitMVar killMVar = (do
+  let hints = defaultHints { addrFlags = [AI_NUMERICHOST, AI_NUMERICSERV], addrSocketType = Stream }
+  addr:_ <- getAddrInfo (Just hints) (Just "127.0.0.1") (Just $ show port)
+  recvSocket <- socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
+  setSocketOption recvSocket ReuseAddr 1
+  setSocketOption recvSocket ReusePort 1
+  bind recvSocket $ addrAddress addr
+  listen recvSocket 1
+  putMVar waitMVar WaitFlag
+  (acceptedSocket, _) <- accept recvSocket
+  void $ Network.Socket.ByteString.recv acceptedSocket 4096
+  ) `catch` (
+    \e -> return (e :: AsyncException) >> void (tryPutMVar killMVar WaitFlag))
+
+withMockServer :: IO a -> IO a
+withMockServer action = do
+  waitMVar <- newEmptyMVar
+  killMVar <- newEmptyMVar
+  mockServerId <- forkIO $ mockServer 8023 waitMVar killMVar
+  readMVar waitMVar
+  result <- action
+  killThread mockServerId
+  readMVar killMVar
+  status <- threadStatus mockServerId
+
+  return result
+
 getConn :: IO IMAPConnection
-getConn = do
+getConn = withMockServer $ do
   let tlsSettings = Just $ TLSSettingsSimple False False False
-  let params = ConnectionParams "imap.gmail.com" 993 tlsSettings Nothing
+  let params = ConnectionParams "127.0.0.1" 8023 Nothing Nothing
 
   conn <- connectServer params Nothing
   let state = imapState conn
