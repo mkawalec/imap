@@ -15,6 +15,7 @@ import Data.Maybe (isJust, fromJust)
 import qualified Data.ByteString.Char8 as B
 import qualified Network.IMAP.Parsers.Untagged as U
 import qualified Data.Text.Encoding as T
+import qualified Data.Text as T
 import qualified Data.Attoparsec.ByteString.Char8 as A
 import Data.Either.Combinators (fromRight', isLeft)
 import Test.QuickCheck
@@ -144,7 +145,7 @@ unparseFlags parsedFlags = B.concat $ ["(", (B.intercalate " " unparsedFlags), "
         unparseFlag FDraft = "\\Draft"
         unparseFlag FRecent = "\\Recent"
         unparseFlag FAny = "\\*"
-        unparseFlag (FOther f) = T.encodeUtf8 f
+        unparseFlag (FOther f) = T.encodeUtf8 $ T.concat ["\\", f]
 
 testFlagParsing :: TestFlagList -> Bool
 testFlagParsing (TestFlagList flagList) = if isLeft parsedAndUnparsed

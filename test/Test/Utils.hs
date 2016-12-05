@@ -122,7 +122,6 @@ getConn = withMockServer $ do
   let tlsSettings = Just $ TLSSettingsSimple False False False
   let params = ConnectionParams "127.0.0.1" 8023 Nothing Nothing
 
-  putStrLn "about to connect"
   conn <- connectServer params Nothing
   let state = imapState conn
   threadId <- atomically . readTVar $ serverWatcherThread state
