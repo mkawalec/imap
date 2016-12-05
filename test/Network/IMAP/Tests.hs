@@ -20,6 +20,7 @@ import Data.Either.Combinators (fromRight', isLeft)
 import Test.QuickCheck
 import qualified Data.List as L
 import Control.Monad (liftM)
+import Data.Char (ord)
 
 lastIsTagged :: [CommandResult] -> (TaggedResult -> Assertion) -> Assertion
 lastIsTagged responses testAction =
@@ -119,7 +120,7 @@ availableFlags = ["Answered", "Flagged", "Deleted", "Seen", "Draft"]
 instance Arbitrary AtomChar where
   arbitrary = do
     ch <- arbitrary
-    if L.any (\c -> c == ch) atomSpecials
+    if (L.any (\c -> c == ch) atomSpecials) || ord ch > 127
       then arbitrary
       else return $ AtomChar ch
 
