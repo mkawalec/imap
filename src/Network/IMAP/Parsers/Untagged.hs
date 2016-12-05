@@ -11,7 +11,7 @@ import Data.Text.Encoding (decodeUtf8)
 import Data.Either.Combinators (mapBoth, mapRight)
 
 import Control.Applicative
-import Control.Monad (mzero, liftM, (>=>))
+import Control.Monad (liftM, (>=>))
 
 parseOk :: Parser UntaggedResult
 parseOk = do
@@ -22,7 +22,7 @@ parseOk = do
 parseFlag :: Parser Flag
 parseFlag = do
   char '\\'
-  flagName <- takeWhile1 isAtomChar
+  flagName <- takeWhile1 (\c -> isAtomChar c || c == '*')
   case flagName of
             "Seen" -> return FSeen
             "Answered" -> return FAnswered
@@ -31,7 +31,7 @@ parseFlag = do
             "Draft" -> return FDraft
             "Recent" -> return FRecent
             "*" -> return FAny
-            _ -> mzero
+            _ -> return . FOther . decodeUtf8 $ flagName
 
 parseFlagKeyword :: Parser Flag
 parseFlagKeyword = do
