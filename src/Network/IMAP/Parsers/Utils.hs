@@ -30,19 +30,27 @@ hadClosedAllParens openingParenCount char
 parseEmailList :: Parser [EmailAddress]
 parseEmailList = char '(' *> parseEmail `sepBy` char ' ' <* char ')'
 
+parseNString :: Parser T.Text
+parseNString = do
+  char '"'
+  nstring <- AP.takeWhile1 (/= '"')
+  char '"'
+  return $ decodeUtf8 nstring
+
 parseEmail :: Parser EmailAddress
 parseEmail = do
-  string "(\""
-  label <- nilOrValue $ AP.takeWhile1 (/= '"')
-  string "\" NIL \""
+  char '('
+  label <- nilOrValue $ parseNString
+  char ' '
+  route <- nilOrValue $ parseNString
+  char ' '
 
-  emailUsername <- AP.takeWhile1 (/= '"')
-  string "\" \""
-  emailDomain <- AP.takeWhile1 (/= '"')
-  string "\")"
-  let fullAddr = decodeUtf8 $ BSC.concat [emailUsername, "@", emailDomain]
+  emailUsername <- nilOrValue $ parseNString
+  char ' '
+  emailDomain <- nilOrValue $ parseNString
+  char ' '
 
-  return $ EmailAddress (liftM decodeUtf8 label) fullAddr
+  return $ EmailAddress label route emailUsername emailDomain
 
 nilOrValue :: Parser a -> Parser (Maybe a)
 nilOrValue parser = rightToMaybe <$> AP.eitherP (string "NIL") parser
