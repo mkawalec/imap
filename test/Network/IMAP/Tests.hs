@@ -14,6 +14,7 @@ import Data.Maybe (isJust, fromJust)
 
 import qualified Data.ByteString.Char8 as B
 import qualified Network.IMAP.Parsers.Untagged as U
+import qualified Network.IMAP.Parsers.Utils as Utils
 import qualified Data.Text.Encoding as T
 import qualified Data.Text as T
 import qualified Data.Attoparsec.ByteString.Char8 as A
@@ -137,6 +138,30 @@ instance Arbitrary TestFlagList where
     flags <- map (\(Atom a) -> B.append "\\" a) `liftM` mapM (\_ -> arbitrary) [1..howManyFlags]
     return . TestFlagList . B.concat $ ["(", (B.intercalate " " flags), ")"]
 
+newtype AddressPart = AddressPart B.ByteString
+instance Arbitrary AddressPart where
+  arbitrary = do
+    isNil :: Bool <- choose (False, True)
+    case isNil of
+      True -> return $ AddressPart "NIL"
+      False -> do
+        Atom atom <- arbitrary
+        return . AddressPart $ B.concat ["\"", atom, "\""]
+
+newtype MockAddress = MockAddress B.ByteString deriving (Eq, Show)
+instance Arbitrary MockAddress where
+  arbitrary = do
+    labels <- mapM (\_ -> arbitrary >>= \(AddressPart label) -> return label) [1..4]
+    return . MockAddress $ B.concat ["(", B.intercalate " " labels, ")"]
+
+unparseEmailAddr :: EmailAddress -> B.ByteString
+unparseEmailAddr (EmailAddress label route uname domain) =
+  B.concat ["(", maybeToString label, maybeToString route,
+            maybeToString uname, maybeToString domain, ")"]
+    where maybeToString val = case val of
+                                Nothing -> "NIL"
+                                Just value -> B.concat ["\"", T.encodeUtf8 value, "\""]
+
 unparseFlags :: [Flag] -> B.ByteString
 unparseFlags parsedFlags = B.concat $ ["(", (B.intercalate " " unparsedFlags), ")"]
   where unparsedFlags = map (unparseFlag) parsedFlags
@@ -148,6 +173,12 @@ unparseFlags parsedFlags = B.concat $ ["(", (B.intercalate " " unparsedFlags), "
         unparseFlag FRecent = "\\Recent"
         unparseFlag FAny = "\\*"
         unparseFlag (FOther f) = T.encodeUtf8 $ T.concat ["\\", f]
+
+testEmailParsing :: MockAddress -> Bool
+testEmailParsing (MockAddress addr) = case parsedAndUnparsed of
+    Left _ -> False
+    Right val -> val == addr
+  where parsedAndUnparsed = A.parseOnly Utils.parseEmail addr >>= Right . unparseEmailAddr
 
 testFlagParsing :: TestFlagList -> Bool
 testFlagParsing (TestFlagList flagList) = if isLeft parsedAndUnparsed
