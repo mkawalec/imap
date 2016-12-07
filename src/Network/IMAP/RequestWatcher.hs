@@ -27,7 +27,6 @@ import qualified Control.Monad.Catch as C
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad (when)
 import Data.Foldable (forM_)
-import qualified Debug.Trace as DT
 
 import System.Log.Logger (errorM)
 
@@ -36,7 +35,7 @@ requestWatcher :: (MonadIO m, Universe m, MonadCatch m) => IMAPConnection -> m (
 requestWatcher conn = flip C.catch (handleExceptions conn) $ do
   parsedLine <- getParsedChunk (rawConnection . imapState $ conn) (AP.parse parseReply)
 
-  DT.traceShow parsedLine $ when (isRight parsedLine) $ reactToReply conn $ fromRight' parsedLine
+  when (isRight parsedLine) $ reactToReply conn $ fromRight' parsedLine
 
   requestWatcher conn
 
@@ -123,7 +122,7 @@ parseChunk :: (BSC.ByteString -> Result ParseResult) ->
               BSC.ByteString ->
               ((Maybe ParseResult, Maybe (BSC.ByteString -> Result ParseResult)), BSC.ByteString)
 parseChunk parser chunk =
-    DT.traceShow chunk $ case parser chunk of
+    case parser chunk of
       Fail left _ msg -> ((Just . Left . T.pack $ msg, Nothing), omitOneLine left)
       Partial continuation -> ((Nothing, Just continuation), BS.empty)
       Done left result -> ((Just result, Nothing), left)

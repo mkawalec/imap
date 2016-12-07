@@ -265,7 +265,7 @@ append conn mailboxName message flagL dateTime = do
                             encodedDate, " {", BSC.pack . show . BSC.length $ message,
                             "}\r\n", message]
 
-  DT.traceShow command $ return ()
+  return ()
   sendCommand conn command
 
 -- |
