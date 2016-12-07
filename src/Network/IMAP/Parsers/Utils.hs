@@ -48,7 +48,7 @@ parseEmail = do
   emailUsername <- nilOrValue $ parseNString
   char ' '
   emailDomain <- nilOrValue $ parseNString
-  char ' '
+  char ')'
 
   return $ EmailAddress label route emailUsername emailDomain
 
