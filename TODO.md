@@ -1,0 +1,5 @@
+- [ ] Email parsing that works
+- [ ] Debuggable errors, without dropping into Debug.Trace on chunks
+- [ ] Fix GHC warnings
+- [ ] Hlint that shit
+- [ ] Tests are structured
