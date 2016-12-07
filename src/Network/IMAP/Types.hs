@@ -69,7 +69,9 @@ data IMAPSettings = IMAPSettings {
 
 data EmailAddress = EmailAddress {
   emailLabel :: Maybe T.Text,
-  emailAddress :: T.Text
+  emailRoute :: Maybe T.Text,
+  emailUsername :: Maybe T.Text,
+  emailDomain :: Maybe T.Text
 } deriving (Show, Eq)
 
 data Flag = FSeen
