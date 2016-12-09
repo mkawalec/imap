@@ -1,6 +1,6 @@
 - [x] Email parsing that works
 - [x] Email parsing is tested
-- [ ] Debuggable errors, without dropping into Debug.Trace on chunks
+- [x] Debuggable errors, without dropping into Debug.Trace on chunks
 - [ ] Fix GHC warnings
 - [ ] Hlint that shit
 - [ ] Tests are structured
