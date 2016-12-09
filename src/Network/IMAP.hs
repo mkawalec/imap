@@ -344,7 +344,7 @@ simpleFormat action = do
           Untagged _ -> return . Left $ "Last result is untagged, something went wrong"
           Tagged t -> case resultState t of
             OK -> return . Right $ map (\(Untagged u) -> u) (init results)
-            _ -> return . Left . decodeUtf8 . resultRest $ t
+            _ -> return . Left . resultRest $ t
 
 oneParamCommand :: (MonadPlus m, MonadIO m, Universe m) => T.Text ->
   IMAPConnection -> T.Text -> m CommandResult

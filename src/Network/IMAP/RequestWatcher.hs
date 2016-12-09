@@ -89,7 +89,7 @@ dispatchError requests errorMessage = do
       let errorResponse = TaggedResult {
         commandId="noid"
       , resultState=BAD
-      , resultRest=T.encodeUtf8 errorMessage
+      , resultRest=errorMessage
       }
       liftIO . atomically $ writeTQueue (responseQueue req) $ Tagged errorResponse
       return reqs
@@ -106,7 +106,7 @@ dispatchTagged requests response = do
 
   liftIO $ case pendingRequest of
     Just req -> atomically $ writeTQueue (responseQueue req) $ Tagged response
-    Nothing -> errorM "RequestWatcher" "Received a reply for an unknown request"
+    Nothing -> return ()
 
   return $ if isJust pendingRequest
             then filter (/= fromJust pendingRequest) requests
@@ -187,7 +187,7 @@ handleExceptions conn e = do
   let reply = TaggedResult {
     commandId = "noid",
     resultState = BAD,
-    resultRest = BSC.append "Exception caught " (BSC.pack . show $ e)
+    resultRest = T.append "Exception caught " (T.pack . show $ e)
   }
   liftIO . atomically $ mapM_ (sendResponse reply) requests
 

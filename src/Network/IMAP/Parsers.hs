@@ -10,6 +10,8 @@ import Data.Attoparsec.ByteString
 import qualified Data.Attoparsec.ByteString as AP
 import Data.Word8
 
+import qualified Data.Text.Encoding as T
+
 import Control.Applicative
 
 parseReply :: Parser (Either ErrorMessage CommandResult)
@@ -17,6 +19,7 @@ parseReply = parseFetch <|> parseLine
 
 parseLine :: Parser (Either ErrorMessage CommandResult)
 parseLine = do
+  many $ string "\r\n"
   parsed <- parseUntagged <|> parseTagged
   string "\r\n"
   return parsed
@@ -29,7 +32,7 @@ parseTagged = do
   commandState <- takeWhile1 isLetter
   word8 _space
 
-  rest <- takeWhile1 (/= _cr)
+  rest <- T.decodeUtf8 <$> takeWhile1 (/= _cr)
   let state = case commandState of
                 "OK" -> OK
                 "NO" -> NO

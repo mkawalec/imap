@@ -119,7 +119,7 @@ data TaggedResult = TaggedResult {
                       -- |State returned by the server side
                       resultState :: !ResultState,
                       -- |Rest of the result, usually the human-readable part
-                      resultRest :: BSC.ByteString
+                      resultRest :: T.Text
                     } deriving (Show, Eq)
 
 -- |Tagged results can be in on of these three states
