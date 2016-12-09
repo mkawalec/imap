@@ -15,6 +15,7 @@ import qualified Data.ByteString.Char8 as BSC
 
 import qualified Data.List as L
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 
 import qualified Data.STM.RollingQueue as RQ
 import Control.Concurrent.STM.TQueue
@@ -35,7 +36,9 @@ requestWatcher :: (MonadIO m, Universe m, MonadCatch m) => IMAPConnection -> m (
 requestWatcher conn = flip C.catch (handleExceptions conn) $ do
   parsedLine <- getParsedChunk (rawConnection . imapState $ conn) (AP.parse parseReply)
 
-  when (isRight parsedLine) $ reactToReply conn $ fromRight' parsedLine
+  case parsedLine of
+    Right parseResult -> reactToReply conn parseResult
+    Left err -> liftIO $ putStrLn $ T.unpack err
 
   requestWatcher conn
 
@@ -123,9 +126,17 @@ parseChunk :: (BSC.ByteString -> Result ParseResult) ->
               ((Maybe ParseResult, Maybe (BSC.ByteString -> Result ParseResult)), BSC.ByteString)
 parseChunk parser chunk =
     case parser chunk of
-      Fail left _ msg -> ((Just . Left . T.pack $ msg, Nothing), omitOneLine left)
+      Fail left _ msg -> ((Just $ assembleParseError msg chunk, Nothing), omitOneLine left)
       Partial continuation -> ((Nothing, Just continuation), BS.empty)
       Done left result -> ((Just result, Nothing), left)
+
+assembleParseError :: String -> BSC.ByteString -> ParseResult
+assembleParseError parserError chunk = Left $ T.concat [
+    "Parse failed with error: '", packedError, "' while reading an input chunk: '",
+    decodedChunk, "'.\n\nThis should never happen and is a library error. ",
+    "To open an issue please go to https://github.com/mkawalec/imap/issues"]
+  where packedError = T.pack parserError
+        decodedChunk = T.pack $ show chunk
 
 getParsedChunk :: (MonadIO m, Universe m) => Connection ->
                   (BSC.ByteString -> Result ParseResult) ->
@@ -133,9 +144,9 @@ getParsedChunk :: (MonadIO m, Universe m) => Connection ->
 getParsedChunk conn parser = do
   (parsed, cont) <- connectionGetChunk'' conn $ parseChunk parser
 
-  if isJust cont
-    then getParsedChunk conn $ fromJust cont
-    else return . fromJust $ parsed
+  case cont of
+    Just continuation -> getParsedChunk conn continuation
+    Nothing -> return . fromJust $ parsed
 
 -- |Reject all outstanding requests with the exception handler, close the watcher
 handleExceptions :: (MonadIO m, Universe m, MonadCatch m) => IMAPConnection ->

@@ -114,9 +114,9 @@ data Capability = CIMAP4
 data TaggedResult = TaggedResult {
                       -- |Id of the command that completes
                       commandId :: CommandId,
-                      -- |State returned by the serverside
+                      -- |State returned by the server side
                       resultState :: !ResultState,
-                      -- |Rest of the result, usually a human-readable form of a result
+                      -- |Rest of the result, usually the human-readable part
                       resultRest :: BSC.ByteString
                     } deriving (Show, Eq)
 
