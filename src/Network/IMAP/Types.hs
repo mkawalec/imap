@@ -52,6 +52,8 @@ data IMAPState = IMAPState {
   imapSettings :: IMAPSettings
 }
 
+type ParseResult = Either ErrorMessage CommandResult
+
 data ResponseRequest = ResponseRequest {
   -- |Thread that posted the request should watch this
   --  queue for responses to the request.
@@ -114,10 +116,10 @@ data Capability = CIMAP4
 data TaggedResult = TaggedResult {
                       -- |Id of the command that completes
                       commandId :: CommandId,
-                      -- |State returned by the serverside
+                      -- |State returned by the server side
                       resultState :: !ResultState,
-                      -- |Rest of the result, usually a human-readable form of a result
-                      resultRest :: BSC.ByteString
+                      -- |Rest of the result, usually the human-readable part
+                      resultRest :: T.Text
                     } deriving (Show, Eq)
 
 -- |Tagged results can be in on of these three states
