@@ -24,7 +24,7 @@ readResults :: (MonadPlus m, MonadIO m, Universe m) =>
 readResults state req@(ResponseRequest resultsQueue requestId) = do
   let timeout = imapTimeout . imapSettings $ state
   let reqs = outstandingReqs state
-  
+
   delay <- liftIO . newDelay $ timeout * 1000000
   let d_wait = do
         didComplete <- tryWaitDelay delay

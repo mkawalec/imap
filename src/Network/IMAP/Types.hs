@@ -52,6 +52,8 @@ data IMAPState = IMAPState {
   imapSettings :: IMAPSettings
 }
 
+type ParseResult = Either ErrorMessage CommandResult
+
 data ResponseRequest = ResponseRequest {
   -- |Thread that posted the request should watch this
   --  queue for responses to the request.

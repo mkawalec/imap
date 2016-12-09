@@ -34,15 +34,15 @@ import System.Log.Logger (errorM)
 
 requestWatcher :: (MonadIO m, Universe m, MonadCatch m) => IMAPConnection -> m ()
 requestWatcher conn = flip C.catch (handleExceptions conn) $ do
-  parsedLine <- getParsedChunk (rawConnection . imapState $ conn) (AP.parse parseReply)
-
-  case parsedLine of
-    Right parseResult -> reactToReply conn parseResult
-    Left err -> liftIO $ putStrLn $ T.unpack err
+  parseResult <- getParsedChunk (rawConnection . imapState $ conn) (AP.parse parseReply)
+  reactToReply conn parseResult
 
   requestWatcher conn
 
-reactToReply :: (MonadIO m, Universe m, MonadCatch m) => IMAPConnection -> CommandResult -> m ()
+reactToReply :: (MonadIO m, Universe m, MonadCatch m) =>
+  IMAPConnection ->
+  ParseResult ->
+  m ()
 reactToReply conn parsedReply = do
   let state = imapState conn
   requests <- liftIO . atomically $ do
@@ -50,10 +50,13 @@ reactToReply conn parsedReply = do
     knownReqs <- readTVar $ outstandingReqs state
     return $ knownReqs ++ newReqs
 
-  updateConnState conn parsedReply
   pendingReqs <- case parsedReply of
-    Tagged t -> dispatchTagged requests t
-    Untagged u -> dispatchUntagged conn requests u
+    Left err -> dispatchError requests err
+    Right reply -> do
+      updateConnState conn reply
+      case reply of
+        Tagged t -> dispatchTagged requests t
+        Untagged u -> dispatchUntagged conn requests u
 
   liftIO . atomically $ writeTVar (outstandingReqs state) pendingReqs
   shouldIDie conn
@@ -78,16 +81,32 @@ shouldIDie conn = liftIO $ do
   when (isDisconnected connState && isJust threadId) $
     killThread $ fromJust threadId
 
+dispatchError :: (MonadIO m, Universe m) => [ResponseRequest] ->
+  ErrorMessage -> m [ResponseRequest]
+dispatchError requests errorMessage = do
+  case requests of
+    req:reqs -> do
+      let errorResponse = TaggedResult {
+        commandId="noid"
+      , resultState=BAD
+      , resultRest=T.encodeUtf8 errorMessage
+      }
+      liftIO . atomically $ writeTQueue (responseQueue req) $ Tagged errorResponse
+      return reqs
+    _ -> do
+      liftIO $ errorM "dispatchError" "Cannot dispatch a parse error \
+        \without an outstanding request"
+      return []
+
 dispatchTagged :: (MonadIO m, Universe m) => [ResponseRequest] ->
   TaggedResult -> m [ResponseRequest]
 dispatchTagged requests response = do
   let reqId = commandId response
   let pendingRequest = L.find (\r -> respRequestId r == reqId) requests
 
-  if isJust pendingRequest
-    then liftIO . atomically $
-      writeTQueue (responseQueue . fromJust $ pendingRequest) $ Tagged response
-    else liftIO $ errorM "RequestWatcher" "Received a reply for an unknown request"
+  liftIO $ case pendingRequest of
+    Just req -> atomically $ writeTQueue (responseQueue req) $ Tagged response
+    Nothing -> errorM "RequestWatcher" "Received a reply for an unknown request"
 
   return $ if isJust pendingRequest
             then filter (/= fromJust pendingRequest) requests
@@ -120,7 +139,6 @@ omitOneLine :: BSC.ByteString -> BSC.ByteString
 omitOneLine bytes = if BSC.length withLF > 0 then BSC.tail withLF else withLF
   where withLF = BSC.dropWhile (/= '\n') bytes
 
-type ParseResult = Either ErrorMessage CommandResult
 parseChunk :: (BSC.ByteString -> Result ParseResult) ->
               BSC.ByteString ->
               ((Maybe ParseResult, Maybe (BSC.ByteString -> Result ParseResult)), BSC.ByteString)
