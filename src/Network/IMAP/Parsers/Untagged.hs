@@ -161,7 +161,7 @@ parseExpunge = do
 
 parseSearchResult :: Parser (Either ErrorMessage UntaggedResult)
 parseSearchResult = do
-  string "SEARCH "
+  string "SEARCH"
   msgIds <- AP.takeWhile isDigit `sepBy` char ' '
-  let parsedIds = mapM toInt msgIds
+  let parsedIds = mapM toInt (filter (/= "") msgIds)
   return $ liftM Search parsedIds
