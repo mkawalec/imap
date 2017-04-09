@@ -85,6 +85,19 @@ testRecent = do
   (res, _) <- runFakeIOWithReply conn "* 15 RECENT" "OK k" $ sendCommand conn "test"
   forUntagged res isRecent $ \(Recent count) -> count @?= 15
 
+
+testSearch1 = do
+  conn <- getConn
+  (res, _) <- runFakeIOWithReply conn "* SEARCH 583551 3" "OK UID SEARCH completed" $ sendCommand conn "test"
+  putStrLn $ show res
+  forUntagged res isSearch $ \(Search r) -> (length r) @?= 2
+
+testSearch2 = do
+  conn <- getConn
+  (res, _) <- runFakeIOWithReply conn "* SEARCH" "OK UID SEARCH completed" $ sendCommand conn "test"
+  putStrLn $ show res
+  forUntagged res isSearch $ \(Search r) -> (length r) @?= 0
+
 testUnseen = do
   conn <- getConn
   (res, _) <- runFakeIOWithReply conn "* OK [UNSEEN 15]" "OK k" $ sendCommand conn "test"
@@ -194,6 +207,8 @@ tests = testGroup "Network.IMAP" [
   , testCase "Check EXISTS" testExists
   , testCase "Check RECENT" testRecent
   , testCase "Check UNSEEN" testUnseen
+  , testCase "Check SEARCH 1" testSearch1
+  , testCase "Check SEARCH 2" testSearch2
   , testCase "Check UIDNEXT" testUIDNext
   , testCase "Check PERMANENTFLAGS" testPermFlags
   , testProperty "Check flag parsing" testFlagParsing
