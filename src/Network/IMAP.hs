@@ -348,4 +348,5 @@ simpleFormat action = do
 oneParamCommand :: (MonadPlus m, MonadIO m, Universe m) => T.Text ->
   IMAPConnection -> T.Text -> m CommandResult
 oneParamCommand commandName conn mailboxName = sendCommand conn wholeCommand
-  where wholeCommand = encodeUtf8 $ T.intercalate " " [commandName, mailboxName]
+  where wholeCommand = encodeUtf8 $ T.intercalate " " [commandName, escapedMailbox]
+        escapedMailbox = T.concat ["\"", mailboxName, "\""]
