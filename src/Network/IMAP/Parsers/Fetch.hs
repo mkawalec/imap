@@ -1,18 +1,17 @@
 module Network.IMAP.Parsers.Fetch where
 
-import Network.IMAP.Types
-import Network.IMAP.Parsers.Utils
-import Network.IMAP.Parsers.Untagged (parseFlags)
+import           Network.IMAP.Types
+import           Network.IMAP.Parsers.Utils
+import           Network.IMAP.Parsers.Untagged (parseFlags)
 
-import Data.Attoparsec.ByteString
+import           Data.Attoparsec.ByteString
 import qualified Data.Attoparsec.ByteString as AP
-import Data.Word8
+import           Data.Word8
 import qualified Data.ByteString.Char8 as BSC
-import Data.Maybe (fromJust, isNothing)
-import Data.Either.Combinators (isRight, fromRight', fromLeft')
+import           Data.Maybe (fromJust, isNothing)
 
-import Control.Applicative
-import Control.Monad (liftM)
+import           Control.Applicative
+import           Control.Monad (liftM)
 
 
 parseFetch :: Parser (Either ErrorMessage CommandResult)
@@ -54,12 +53,11 @@ parseBody = do
   size <- AP.takeWhile1 isDigit
   string "}\r\n"
 
-  let parsedSize = toInt size
-  if isRight parsedSize
-    then do
-      msg <- AP.take (fromRight' parsedSize)
+  case toInt size of
+    Right parsedSize -> do
+      msg <- AP.take $ fromIntegral parsedSize
       return . Right . Body $ msg
-    else return . Left $ fromLeft' parsedSize
+    Left e -> return $ Left e
 
 parseBodyStructure :: Parser UntaggedResult
 parseBodyStructure = do

@@ -54,7 +54,7 @@ escapeText t = T.replace "{" "\\{" $
              T.replace "\\" "\\\\" t
 
 
-ifNotDisconnected :: (MonadPlus m, MonadIO m, Universe m) =>
+ifNotDisconnected :: (MonadPlus m, MonadIO m) =>
                      IMAPConnection -> m CommandResult -> m CommandResult
 ifNotDisconnected conn action = do
   connState <- liftIO . atomically . readTVar $ connectionState conn
