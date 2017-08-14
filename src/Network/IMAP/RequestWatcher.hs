@@ -3,8 +3,6 @@ module Network.IMAP.RequestWatcher (requestWatcher) where
 import Network.IMAP.Types
 import Network.IMAP.Parsers
 
-import Data.Either (isRight)
-import Data.Either.Combinators (fromRight')
 import Data.Maybe (isJust, fromJust)
 
 import Network.Connection
@@ -15,7 +13,6 @@ import qualified Data.ByteString.Char8 as BSC
 
 import qualified Data.List as L
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
 
 import qualified Data.STM.RollingQueue as RQ
 import Control.Concurrent.STM.TQueue
@@ -39,7 +36,7 @@ requestWatcher conn = flip C.catch (handleExceptions conn) $ do
 
   requestWatcher conn
 
-reactToReply :: (MonadIO m, Universe m, MonadCatch m) =>
+reactToReply :: (MonadIO m) =>
   IMAPConnection ->
   ParseResult ->
   m ()
@@ -61,7 +58,7 @@ reactToReply conn parsedReply = do
   liftIO . atomically $ writeTVar (outstandingReqs state) pendingReqs
   shouldIDie conn
 
-updateConnState :: (MonadIO m, Universe m) => IMAPConnection -> CommandResult -> m ()
+updateConnState :: (MonadIO m) => IMAPConnection -> CommandResult -> m ()
 updateConnState conn command = do
   let connState = connectionState conn
 
@@ -69,11 +66,10 @@ updateConnState conn command = do
     Untagged u -> case u of
                     OKResult _ -> liftIO . atomically $ writeTVar connState Connected
                     Bye -> liftIO . atomically $ writeTVar connState Disconnected
-
                     _ -> return ()
     _ -> return ()
 
-shouldIDie :: (MonadIO m, Universe m) => IMAPConnection -> m ()
+shouldIDie :: (MonadIO m) => IMAPConnection -> m ()
 shouldIDie conn = liftIO $ do
   threadId <- atomically . readTVar . serverWatcherThread . imapState $ conn
   connState <- atomically . readTVar $ connectionState conn
@@ -81,7 +77,7 @@ shouldIDie conn = liftIO $ do
   when (isDisconnected connState && isJust threadId) $
     killThread $ fromJust threadId
 
-dispatchError :: (MonadIO m, Universe m) => [ResponseRequest] ->
+dispatchError :: (MonadIO m) => [ResponseRequest] ->
   ErrorMessage -> m [ResponseRequest]
 dispatchError requests errorMessage = do
   case requests of
@@ -98,7 +94,7 @@ dispatchError requests errorMessage = do
         \without an outstanding request"
       return []
 
-dispatchTagged :: (MonadIO m, Universe m) => [ResponseRequest] ->
+dispatchTagged :: (MonadIO m) => [ResponseRequest] ->
   TaggedResult -> m [ResponseRequest]
 dispatchTagged requests response = do
   let reqId = commandId response
@@ -112,7 +108,7 @@ dispatchTagged requests response = do
             then filter (/= fromJust pendingRequest) requests
             else requests
 
-dispatchUntagged :: (MonadIO m, Universe m) => IMAPConnection ->
+dispatchUntagged :: (MonadIO m) => IMAPConnection ->
                     [ResponseRequest] ->
                     UntaggedResult ->
                     m [ResponseRequest]
@@ -167,9 +163,9 @@ getParsedChunk conn parser = do
     Nothing -> return . fromJust $ parsed
 
 -- |Reject all outstanding requests with the exception handler, close the watcher
-handleExceptions :: (MonadIO m, Universe m, MonadCatch m) => IMAPConnection ->
-                                               SomeException ->
-                                               m ()
+handleExceptions :: (MonadIO m) => IMAPConnection ->
+                                   SomeException ->
+                                   m ()
 handleExceptions conn e = do
   let state = imapState conn
 

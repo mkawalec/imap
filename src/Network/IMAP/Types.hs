@@ -127,21 +127,21 @@ data ResultState = OK | NO | BAD deriving (Show, Eq)
 
 -- |Untagged replies are the actual data returned in response to the commands.
 data UntaggedResult = Flags [Flag] -- ^ A list of flags a mailbox has
-                    | Exists Int -- ^ How many messages exist in a mailbox
-                    | Expunge Int -- ^ Sequence id of a deleted message
+                    | Exists Integer -- ^ How many messages exist in a mailbox
+                    | Expunge Integer -- ^ Sequence id of a deleted message
                     | Bye -- ^ Returned by the server when it cleanly disconnects
-                    | HighestModSeq Int
-                    | Recent Int -- ^ Number of recent messages
-                    | Messages Int -- ^ Number of messages in a mailbox
-                    | Unseen Int -- ^ Number of unseen messages
+                    | HighestModSeq Integer
+                    | Recent Integer -- ^ Number of recent messages
+                    | Messages Integer -- ^ Number of messages in a mailbox
+                    | Unseen Integer -- ^ Number of unseen messages
                     | PermanentFlags [Flag]
-                    | UID Int -- ^ UID of a message
-                    | MessageId Int -- ^ A sequence id of a message
+                    | UID Integer -- ^ UID of a message
+                    | MessageId Integer -- ^ A sequence id of a message
                     -- |UID that will be given to the next message added to this mailbox
-                    | UIDNext Int
+                    | UIDNext Integer
                     -- |A triple of mailbox name, it's UIDValidity value and message UID
                     --  is always unique for a given message
-                    | UIDValidity Int
+                    | UIDValidity Integer
                     | OKResult T.Text -- ^ Result of an OK response
                     | Capabilities [Capability] -- ^ What server advertises that it supports
                     -- |Response to the `LIST` command
@@ -157,7 +157,7 @@ data UntaggedResult = Flags [Flag] -- ^ A list of flags a mailbox has
                     -- |Status of a mailbox, will contain many different responses inside
                     | StatusR T.Text [UntaggedResult]
                     -- |A list of message IDs or UIDs fullfilling the search criterions
-                    | Search [Int]
+                    | Search [Integer]
                     -- |A parsed ENVELOPE reply, prefixed to avoid name clashes
                     | Envelope {
                       eDate :: Maybe T.Text,
@@ -172,7 +172,7 @@ data UntaggedResult = Flags [Flag] -- ^ A list of flags a mailbox has
                       eMessageId :: Maybe T.Text
                     }
                     | InternalDate T.Text
-                    | Size Int -- ^ Message size
+                    | Size Integer -- ^ Message size
                     | Unknown BSC.ByteString -- ^ An unsupported value
                     | Body BSC.ByteString -- ^ Message body, or headers
                     | BodyStructure BSC.ByteString -- ^ An unparsed bodystructure
@@ -214,6 +214,7 @@ instance Universe (P.ListT IO) where
   connectionPut' c d = liftIO $ connectionPut c d
   connectionGetChunk'' c cont = liftIO $ connectionGetChunk' c cont
 
+defaultImapSettings :: IMAPSettings
 defaultImapSettings = IMAPSettings 30 10
 
 $(derive makeIs ''Flag)

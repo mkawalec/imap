@@ -58,7 +58,7 @@ module Network.IMAP (
 
 import Network.Connection
 import qualified Data.Text as T
-import Data.Text.Encoding (encodeUtf8, decodeUtf8)
+import Data.Text.Encoding (encodeUtf8)
 import qualified Data.ByteString.Char8 as BSC
 
 import qualified Data.STM.RollingQueue as RQ
@@ -77,7 +77,6 @@ import Control.Monad (MonadPlus(..), when)
 import Control.Monad.IO.Class (MonadIO(..))
 import ListT (toList, ListT)
 import qualified Data.List as L
-import qualified Debug.Trace as DT
 
 -- |Connects to the server and gives you a connection object
 --  that needs to be passed to any other command. You should only call it once
@@ -346,7 +345,7 @@ uidCopy conn sequenceSet mailboxName = sendCommand conn $ encodeUtf8 command
 --  is of type NO or BAD. Also return all untagged replies received if
 --  replies list contains a BYE response
 --  (when the server decided to cleanly disconnect)
-simpleFormat :: (MonadIO m, Universe m) =>
+simpleFormat :: (MonadIO m) =>
                 ListT m CommandResult -> m SimpleResult
 simpleFormat action = do
   results <- toList action
@@ -366,4 +365,5 @@ simpleFormat action = do
 oneParamCommand :: (MonadPlus m, MonadIO m, Universe m) => T.Text ->
   IMAPConnection -> T.Text -> m CommandResult
 oneParamCommand commandName conn mailboxName = sendCommand conn wholeCommand
-  where wholeCommand = encodeUtf8 $ T.intercalate " " [commandName, mailboxName]
+  where wholeCommand = encodeUtf8 $ T.intercalate " " [commandName, escapedMailbox]
+        escapedMailbox = T.concat ["\"", mailboxName, "\""]
