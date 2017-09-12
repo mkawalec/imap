@@ -206,11 +206,13 @@ authenticate conn method authAction = do
 
 select :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
   T.Text -> m CommandResult
-select = oneParamCommand "SELECT"
+select conn mboxName = oneParamCommand "SELECT" conn escapedMailbox
+  where escapedMailbox = T.concat ["\"", mboxName, "\""]
 
 examine :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
   T.Text -> m CommandResult
-examine = oneParamCommand "EXAMINE"
+examine conn mboxName = oneParamCommand "EXAMINE" conn escapedMailbox
+  where escapedMailbox = T.concat ["\"", mboxName, "\""]
 
 create :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
   T.Text -> m CommandResult
@@ -347,6 +349,5 @@ simpleFormat action = do
 
 oneParamCommand :: (MonadPlus m, MonadIO m, Universe m) => T.Text ->
   IMAPConnection -> T.Text -> m CommandResult
-oneParamCommand commandName conn mailboxName = sendCommand conn wholeCommand
-  where wholeCommand = encodeUtf8 $ T.intercalate " " [commandName, escapedMailbox]
-        escapedMailbox = T.concat ["\"", mailboxName, "\""]
+oneParamCommand commandName conn params = sendCommand conn wholeCommand
+  where wholeCommand = encodeUtf8 $ T.intercalate " " [commandName, params]

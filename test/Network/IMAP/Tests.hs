@@ -8,7 +8,6 @@ import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase)
 import Test.Tasty.QuickCheck (testProperty)
 import Test.HUnit (Assertion, (@?=), assertFailure)
-import qualified Debug.Trace as DT
 import qualified Data.List as L
 import Data.Maybe (isJust, fromJust)
 
