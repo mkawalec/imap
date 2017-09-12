@@ -9,6 +9,7 @@ import           Data.Text.Encoding (decodeUtf8)
 import qualified Data.ByteString.Char8 as BSC
 import           Data.Either.Combinators (rightToMaybe)
 import           Control.Monad (liftM)
+import           Control.Applicative ((<|>))
 
 import           Data.Set (Set)
 import qualified Data.Set as Set
@@ -54,13 +55,14 @@ parseEmail = do
 nilOrValue :: Parser a -> Parser (Maybe a)
 nilOrValue parser = rightToMaybe <$> AP.eitherP (string "NIL") parser
 
-parseQuotedText :: Parser T.Text
-parseQuotedText = do
-  char '"'
-  date <- AP.takeWhile1 (/= '"')
-  char '"'
+parseQuoted :: Parser BSC.ByteString
+parseQuoted =
+  (string "\\\"" *> (BSC.init <$> AP.takeWhile1 (/= '"')) <* char '"')
+    <|>
+  (char '"' *> AP.takeWhile (/= '"') <* char '"')
 
-  return . decodeUtf8 $ date
+parseQuotedText :: Parser T.Text
+parseQuotedText = decodeUtf8 <$> parseQuoted
 
 parseNameAttribute :: Parser NameAttribute
 parseNameAttribute = do
@@ -113,3 +115,8 @@ parseNumber constructor prefix postfix = do
     else return BSC.empty
 
   return $ liftM constructor (toInt parsedNumber)
+
+parseLabel :: Parser BSC.ByteString
+parseLabel = parseQuoted <|>
+             (char '\\' *> AP.takeWhile1 isAtomChar) <|>
+             (AP.takeWhile1 isAtomChar)

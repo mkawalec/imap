@@ -176,7 +176,11 @@ data UntaggedResult = Flags [Flag] -- ^ A list of flags a mailbox has
                     | Unknown BSC.ByteString -- ^ An unsupported value
                     | Body BSC.ByteString -- ^ Message body, or headers
                     | BodyStructure BSC.ByteString -- ^ An unparsed bodystructure
+                    | Extension BSC.ByteString ExtensionPayload -- ^ A format extension
                     deriving (Show, Eq)
+
+data ExtensionPayload = ExtInt Integer | ExtLabels [BSC.ByteString]
+  deriving (Show, Eq)
 
 data NameAttribute = Noinferiors
                    | Noselect

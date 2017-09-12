@@ -2,7 +2,7 @@ module Network.IMAP.Parsers.Fetch where
 
 import           Network.IMAP.Types
 import           Network.IMAP.Parsers.Utils
-import           Network.IMAP.Parsers.Untagged (parseFlags)
+import           Network.IMAP.Parsers.Untagged (parseFlags, parseExtension)
 
 import           Data.Attoparsec.ByteString
 import qualified Data.Attoparsec.ByteString as AP
@@ -39,7 +39,8 @@ parseSpecifiers = do
                   ((string "BODY[" <|> string "RFC822.HEADER"
                    <|> string "RFC822.TEXT" <|> string "RFC822") *> parseBody) <|>
                   parseNumber UID "UID" "" <|>
-                  Right <$> parseBodyStructure
+                  (Right <$> parseBodyStructure) <|>
+                  parseExtension
 
       (nextRes:) <$> (AP.anyWord8 *> parseSpecifiers)
 

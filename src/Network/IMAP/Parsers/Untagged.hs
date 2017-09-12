@@ -19,6 +19,18 @@ parseOk = do
   contents <- AP.takeWhile (/= '\r')
   return . OKResult . decodeUtf8 $ contents
 
+parseExtension :: Parser (Either ErrorMessage UntaggedResult)
+parseExtension = do
+  extensionName <- AP.takeWhile1 isAtomChar
+  char ' '
+
+  payload <- ((liftA ExtLabels <$> Right) <$>
+              (char '(' *> AP.sepBy parseLabel (char ' ') <* char ')')
+             )
+                <|>
+             (liftA ExtInt <$> parseNumber id "" "")
+  return $! (Extension extensionName) <$> payload
+
 parseFlag :: Parser Flag
 parseFlag = do
   char '\\'
