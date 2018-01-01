@@ -3,6 +3,7 @@ module Network.IMAP.Parsers.Untagged where
 import Network.IMAP.Types
 import Network.IMAP.Parsers.Utils
 
+import Data.ByteString (ByteString)
 import Data.Attoparsec.ByteString.Char8
 import qualified Data.Attoparsec.ByteString.Char8 as AP
 import qualified Data.Text as T
@@ -13,11 +14,21 @@ import Data.Either.Combinators (mapBoth, mapRight)
 import Control.Applicative
 import Control.Monad (liftM, (>=>))
 
-parseOk :: Parser UntaggedResult
-parseOk = do
-  string "OK "
+parseConnectionState :: ByteString -> (T.Text -> UntaggedResult) -> Parser UntaggedResult
+parseConnectionState stateName constructor = do
+  string stateName
+  char ' '
   contents <- AP.takeWhile (/= '\r')
-  return . OKResult . decodeUtf8 $ contents
+  return . constructor . decodeUtf8 $ contents
+
+parseOk :: Parser UntaggedResult
+parseOk = parseConnectionState "OK" OKResult
+
+parseNo :: Parser UntaggedResult
+parseNo = parseConnectionState "NO" NOResult
+
+parseBad :: Parser UntaggedResult
+parseBad = parseConnectionState "BAD" BADResult
 
 parseExtension :: Parser (Either ErrorMessage UntaggedResult)
 parseExtension = do

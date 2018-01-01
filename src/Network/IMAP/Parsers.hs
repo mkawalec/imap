@@ -54,6 +54,8 @@ parseUntagged = do
             parseUidValidity <|>
             parseCapabilityList <|>
             (Right <$> parseOk) <|>
+            (Right <$> parseNo) <|>
+            (Right <$> parseBad) <|>
             (Right <$> parseBye) <|>
             (Right <$> parseListLikeResp "LIST") <|>
             (Right <$> parseListLikeResp "LSUB") <|>
