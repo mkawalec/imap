@@ -163,10 +163,10 @@ Test-Suite imap-test
                         network == 2.6.*,
 
                         tasty == 0.11.*,
-                        HUnit == 1.5.*,
-                        QuickCheck == 2.9.*,
+                        HUnit == 1.6.*,
+                        QuickCheck == 2.10.*,
                         tasty-hunit == 0.9.*,
-                        tasty-quickcheck == 0.8.*,
+                        tasty-quickcheck == 0.9.*,
                         monadIO == 0.10.*,
                         mtl == 2.2.*
   default-language:     Haskell2010
