@@ -5,4 +5,4 @@ packages:
 extra-deps:
 - monadIO-0.10.1.4
 - rolling-queue-0.1
-resolver: lts-9.4
+resolver: lts-10.2

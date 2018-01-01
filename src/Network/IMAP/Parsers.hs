@@ -20,6 +20,9 @@ parseReply = parseFetch <|> parseLine
 parseLine :: Parser (Either ErrorMessage CommandResult)
 parseLine = do
   many $ string "\r\n"
+
+  -- WARNING: We are not actually waiting for go ahead here :P
+  skipMany $ string "+ go ahead\r\n"
   parsed <- parseUntagged <|> parseTagged
   string "\r\n"
   return parsed
@@ -54,6 +57,8 @@ parseUntagged = do
             parseUidValidity <|>
             parseCapabilityList <|>
             (Right <$> parseOk) <|>
+            (Right <$> parseNo) <|>
+            (Right <$> parseBad) <|>
             (Right <$> parseBye) <|>
             (Right <$> parseListLikeResp "LIST") <|>
             (Right <$> parseListLikeResp "LSUB") <|>

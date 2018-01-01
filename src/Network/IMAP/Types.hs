@@ -143,6 +143,8 @@ data UntaggedResult = Flags [Flag] -- ^ A list of flags a mailbox has
                     --  is always unique for a given message
                     | UIDValidity Integer
                     | OKResult T.Text -- ^ Result of an OK response
+                    | NOResult T.Text -- ^ Result of a NO response
+                    | BADResult T.Text -- ^ Result of a BAD response
                     | Capabilities [Capability] -- ^ What server advertises that it supports
                     -- |Response to the `LIST` command
                     | ListR {
