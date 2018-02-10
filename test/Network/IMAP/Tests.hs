@@ -89,13 +89,11 @@ testRecent = do
 testSearch1 = do
   conn <- getConn
   (res, _) <- runFakeIOWithReply conn "* SEARCH 583551 3" "OK UID SEARCH completed" $ sendCommand conn "test"
-  putStrLn $ show res
   forUntagged res isSearch $ \(Search r) -> (length r) @?= 2
 
 testSearch2 = do
   conn <- getConn
   (res, _) <- runFakeIOWithReply conn "* SEARCH" "OK UID SEARCH completed" $ sendCommand conn "test"
-  putStrLn $ show res
   forUntagged res isSearch $ \(Search r) -> (length r) @?= 0
 
 testUnseen = do

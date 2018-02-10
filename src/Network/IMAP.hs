@@ -324,7 +324,6 @@ uidStore :: (MonadPlus m, MonadIO m, Universe m) => IMAPConnection ->
 uidStore conn sequenceSet dataItem flagList = do
   let command = BSC.intercalate " " ["UID STORE", encodeUtf8 sequenceSet,
                                      encodeUtf8 dataItem, flagsToText flagList]
-  liftIO $ putStrLn $ show command
   sendCommand conn command
 
 
