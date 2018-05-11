@@ -4,7 +4,7 @@ import qualified Data.Text as T
 import qualified Data.ByteString.Char8 as BSC
 import qualified Data.STM.RollingQueue as RQ
 import Control.Concurrent.STM.TVar (TVar)
-import Data.DeriveTH
+-- import Data.DeriveTH
 
 import Control.Concurrent (ThreadId)
 import Control.Concurrent.STM.TQueue (TQueue)
@@ -25,6 +25,12 @@ data ConnectionState = UndefinedState
                      | Connected
                      | Disconnected
                      deriving (Show)
+
+isUndefinedState, isConnected, isDisconnected :: ConnectionState -> Bool
+
+isUndefinedState UndefinedState = True; isUndefinedState _ = False
+isConnected Connected = True; isConnected _ = False
+isDisconnected Disconnected = True; isDisconnected _ = False
 
 data IMAPConnection = IMAPConnection {
   -- |The current connection state
@@ -85,6 +91,16 @@ data Flag = FSeen
           | FAny
           | FOther T.Text
   deriving (Show, Eq, Ord)
+
+isFOther, isFAny, isFRecent, isFDraft, isFDeleted, isFFlagged, isFAnswered, isFSeen :: Flag -> Bool
+isFOther (FOther _) = True; isFOther _ = False
+isFAny FAny = True; isFAny _ = False
+isFRecent FRecent = True; isFRecent _ = False
+isFDraft FDraft = True; isFDraft _ = False
+isFDeleted FDeleted = True; isFDeleted _ = False
+isFFlagged FFlagged = True; isFFlagged _ = False
+isFAnswered FAnswered = True; isFAnswered _ = False
+isFSeen FSeen = True; isFSeen _ = False
 
 data Capability = CIMAP4
                 | CUnselect
@@ -181,6 +197,41 @@ data UntaggedResult = Flags [Flag] -- ^ A list of flags a mailbox has
                     | Extension BSC.ByteString ExtensionPayload -- ^ A format extension
                     deriving (Show, Eq)
 
+isFlags, isExists, isExpunge, isBye, isHighestModSeq, isRecent, isMessages :: UntaggedResult -> Bool
+isUnseen, isPermanentFlags, isUID, isMessageId, isUIDNext, isUIDValidity :: UntaggedResult -> Bool
+isOKResult, isNOResult, isBADResult, isCapabilities, isListR, isFetch :: UntaggedResult -> Bool
+isStatusR, isSearch, isEnvelope, isInternalDate, isSize, isUnknown :: UntaggedResult -> Bool
+isBody, isBodyStructure, isExtension :: UntaggedResult -> Bool
+
+isFlags (Flags _) = True; isFlags _ = False
+isExists (Exists{}) = True; isExists _ = False
+isExpunge (Expunge _) = True; isExpunge _ = False
+isBye Bye = True; isBye _ = False
+isHighestModSeq (HighestModSeq _) = True; isHighestModSeq _ = False
+isRecent (Recent _) = True; isRecent _ = False
+isMessages (Messages _) = True; isMessages _ = False
+isUnseen (Unseen _) = True; isUnseen _ = False
+isPermanentFlags (PermanentFlags _) = True; isPermanentFlags _ = False
+isUID (UID _) = True; isUID _ = False
+isMessageId (MessageId _) = True; isMessageId _ = False
+isUIDNext (UIDNext _) = True; isUIDNext _ = False
+isUIDValidity (UIDValidity _) = True; isUIDValidity _ = False
+isOKResult (OKResult _) = True; isOKResult _ = False
+isNOResult (NOResult _) = True; isNOResult _ = False
+isBADResult (BADResult _) = True; isBADResult _ = False
+isCapabilities (Capabilities _) = True; isCapabilities _ = False
+isListR (ListR{}) = True; isListR _ = False
+isFetch (Fetch{}) = True; isFetch _ = False
+isStatusR (StatusR{}) = True; isStatusR _ = False
+isSearch (Search{}) = True; isSearch _ = False
+isEnvelope (Envelope{}) = True; isEnvelope _ = False
+isInternalDate (InternalDate{}) = True; isInternalDate _ = False
+isSize (Size{}) = True; isSize _ = False
+isUnknown (Unknown{}) = True; isUnknown _ = False
+isBody  (Unknown{}) = True; isBody _ = False
+isBodyStructure  (Unknown{}) = True; isBodyStructure _ = False
+isExtension  (Unknown{}) = True; isExtension _ = False
+
 data ExtensionPayload = ExtInt Integer | ExtLabels [BSC.ByteString]
   deriving (Show, Eq)
 
@@ -197,6 +248,12 @@ data NameAttribute = Noinferiors
 --  This is a sum type to bind those two types together
 data CommandResult = Tagged TaggedResult | Untagged UntaggedResult
   deriving (Show, Eq)
+
+isTagged, isUntagged :: CommandResult -> Bool
+isTagged (Tagged{}) = True; isTagged _ = False
+isUntagged (Untagged{}) = True; isUntagged _ = False
+
+
 
 -- |If you don't care about streaming you will get results in this simplified
 --  data type, in which the ErrorMessage comes from TaggedResult if it failed.
@@ -223,7 +280,4 @@ instance Universe (P.ListT IO) where
 defaultImapSettings :: IMAPSettings
 defaultImapSettings = IMAPSettings 30 10
 
-$(derive makeIs ''Flag)
-$(derive makeIs ''UntaggedResult)
-$(derive makeIs ''CommandResult)
-$(derive makeIs ''ConnectionState)
+
