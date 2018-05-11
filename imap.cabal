@@ -106,7 +106,7 @@ library
     Network.IMAP.Utils
   -- other-modules:
   -- other-extensions:
-  build-depends:        base == 4.10.*,
+  build-depends:        base >= 4.10 && <4.12,
                         attoparsec == 0.13.*,
                         text == 1.2.*,
                         connection == 0.2.*,
