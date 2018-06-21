@@ -228,9 +228,9 @@ isEnvelope (Envelope{}) = True; isEnvelope _ = False
 isInternalDate (InternalDate{}) = True; isInternalDate _ = False
 isSize (Size{}) = True; isSize _ = False
 isUnknown (Unknown{}) = True; isUnknown _ = False
-isBody  (Unknown{}) = True; isBody _ = False
-isBodyStructure  (Unknown{}) = True; isBodyStructure _ = False
-isExtension  (Unknown{}) = True; isExtension _ = False
+isBody  (Body{}) = True; isBody _ = False
+isBodyStructure  (BodyStructure{}) = True; isBodyStructure _ = False
+isExtension  (Extension{}) = True; isExtension _ = False
 
 data ExtensionPayload = ExtInt Integer | ExtLabels [BSC.ByteString]
   deriving (Show, Eq)
