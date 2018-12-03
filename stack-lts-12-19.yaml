@@ -1,0 +1,10 @@
+flags: {}
+extra-package-dbs: []
+packages:
+- '.'
+extra-deps:
+- derive-2.6.4
+- monadIO-0.11.1.0
+- rolling-queue-0.1
+- stm-2.5.0.0
+resolver: lts-12.19
