@@ -106,9 +106,9 @@ library
     Network.IMAP.Utils
   -- other-modules:
   -- other-extensions:
-  build-depends:        base >= 4.10 && <4.12,
+  build-depends:        base >= 4.10,
                         attoparsec == 0.13.*,
-                        text == 1.2.*,
+                        text,
                         connection == 0.2.*,
                         bytestring == 0.10.*,
                         random == 1.1.*,
@@ -116,14 +116,14 @@ library
                         rolling-queue == 0.1,
                         stm >= 2.4 && <2.6,
                         either >= 4.5 && <6,
-                        hslogger == 1.2.*,
+                        hslogger,
                         transformers == 0.5.*,
                         list-t == 1.0.*,
                         stm-delay == 0.1.*,
                         exceptions >= 0.8 && <0.11,
                         pipes == 4.3.*,
-                        containers == 0.5.*,
-                        network == 2.6.*
+                        containers,
+                        network
   hs-source-dirs:       src
   default-language:     Haskell2010
   default-extensions:   OverloadedStrings,
@@ -141,9 +141,9 @@ Test-Suite imap-test
   type:                 exitcode-stdio-1.0
   main-is:              main.hs
   hs-source-dirs:       test, src
-  build-depends:        base >= 4.10 && <4.12,
+  build-depends:        base >= 4.10,
                         attoparsec == 0.13.*,
-                        text == 1.2.*,
+                        text,
                         connection == 0.2.*,
                         bytestring == 0.10.*,
                         random == 1.1.*,
@@ -151,15 +151,15 @@ Test-Suite imap-test
                         rolling-queue == 0.1,
                         stm >= 2.4 && <2.6,
                         either >= 4.5 && <6,
-                        hslogger == 1.2.*,
+                        hslogger,
                         transformers == 0.5.*,
                         list-t == 1.0.*,
                         derive == 2.6.*,
                         stm-delay == 0.1.*,
                         exceptions >= 0.8 && <0.11,
                         pipes == 4.3.*,
-                        containers == 0.5.*,
-                        network == 2.6.*,
+                        containers,
+                        network,
 
                         tasty >= 0.11,
                         HUnit == 1.6.*,
