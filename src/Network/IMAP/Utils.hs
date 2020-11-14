@@ -53,6 +53,9 @@ escapeText t = T.replace "{" "\\{" $
              T.replace "\"" "\\\"" $
              T.replace "\\" "\\\\" t
 
+quoteText :: T.Text -> T.Text
+quoteText t = T.concat ["\"", t, "\""]
+
 
 ifNotDisconnected :: (MonadPlus m, MonadIO m) =>
                      IMAPConnection -> m CommandResult -> m CommandResult

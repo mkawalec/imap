@@ -175,7 +175,7 @@ login :: (MonadPlus m, MonadIO m, Universe m) =>
          T.Text ->
          m CommandResult
 login conn username password = sendCommand conn . encodeUtf8 $
-  T.intercalate " " ["LOGIN", escapeText username, escapeText password]
+  T.intercalate " " ["LOGIN", quoteText $ escapeText username, quoteText $ escapeText password]
 
 -- |Authenticate with the server. During the authentication control is given
 --  to the library user and is returned to the library at the end of authentication
